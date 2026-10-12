@@ -352,8 +352,15 @@
         
         let ventaReciente = null;
 
-        let filtroDesde = new Date().toISOString().split('T')[0];
-        let filtroHasta = new Date().toISOString().split('T')[0];
+        // NUEVO: Obtener la fecha local real del dispositivo (Costa Rica)
+        const fechaActual = new Date();
+        const año = fechaActual.getFullYear();
+        const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
+        const dia = String(fechaActual.getDate()).padStart(2, '0');
+        const fechaLocalString = `${año}-${mes}-${dia}`;
+
+        let filtroDesde = fechaLocalString;
+        let filtroHasta = fechaLocalString;
 
         let montoCajaInicial = 0;
         let ventasTotalesTurno = 0;
@@ -574,16 +581,60 @@
             window.cerrarPanel();
         };
 
+        // VERSIÓN OPTIMIZADA SÚPER RÁPIDA (Evita parpadeos y retrasos)
         function renderizarGridOperacion() {
-            const grid = document.getElementById('grid-elementos'); grid.innerHTML = '';
-            if(!datosRestaurante[vistaActual] || datosRestaurante[vistaActual].length === 0) return grid.innerHTML = `<p class="col-span-full text-slate-500 mt-10">Sin espacios cargados.</p>`;
-            datosRestaurante[vistaActual].forEach(el => {
+            const grid = document.getElementById('grid-elementos');
+            const espaciosActuales = datosRestaurante[vistaActual] || [];
+            
+            if(espaciosActuales.length === 0) {
+                grid.innerHTML = `<p class="col-span-full text-slate-500 mt-10 text-center" id="msg-vacio">Sin espacios cargados.</p>`;
+                return;
+            }
+
+            const msgVacio = document.getElementById('msg-vacio');
+            if (msgVacio) msgVacio.remove();
+
+            const idsActuales = espaciosActuales.map(e => e.id);
+            Array.from(grid.children).forEach(child => {
+                if (child.id && child.id.startsWith('card-')) {
+                    const idCard = child.id.replace('card-', '');
+                    if (!idsActuales.includes(idCard)) child.remove();
+                }
+            });
+
+            espaciosActuales.forEach(el => {
                 const ocupada = el.estado === 'ocupada';
-                const tarjeta = document.createElement('div');
-                tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
-                tarjeta.onclick = () => window.seleccionarElemento(el.id);
-                tarjeta.innerHTML = `<div class="flex justify-between items-start"><span class="font-bold text-lg text-slate-100">${ocupada ? el.cliente : 'Libre'}</span><span class="w-3.5 h-3.5 rounded-full ${ocupada ? 'bg-rose-500' : 'bg-emerald-500'}"></span></div><div><p class="text-xs text-slate-500 font-bold uppercase">${el.nombre}</p><p class="text-lg font-black ${ocupada ? 'text-emerald-400' : 'text-slate-600'}">${ocupada ? '₡' + el.total.toLocaleString() : '---'}</p></div>`;
-                grid.appendChild(tarjeta);
+                const htmlContenido = `
+                    <div class="flex justify-between items-start">
+                        <span class="font-bold text-lg text-slate-100 truncate pr-2">${ocupada ? el.cliente : 'Libre'}</span>
+                        <span class="w-3.5 h-3.5 rounded-full shrink-0 ${ocupada ? 'bg-rose-500' : 'bg-emerald-500'} shadow-[0_0_8px_${ocupada ? 'rgba(244,63,94,0.5)' : 'rgba(16,185,129,0.5)'}]"></span>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-500 font-bold uppercase">${el.nombre}</p>
+                        <p class="text-lg font-black ${ocupada ? 'text-emerald-400' : 'text-slate-600'}">${ocupada ? '₡' + el.total.toLocaleString() : '---'}</p>
+                    </div>
+                `;
+
+                let tarjeta = document.getElementById(`card-${el.id}`);
+                
+                if (tarjeta) {
+                    if (tarjeta.innerHTML !== htmlContenido) {
+                        tarjeta.innerHTML = htmlContenido;
+                        tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer transition-colors duration-300 ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
+                    }
+                } else {
+                    tarjeta = document.createElement('div');
+                    tarjeta.id = `card-${el.id}`;
+                    tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer transition-colors duration-300 ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
+                    tarjeta.onclick = () => window.seleccionarElemento(el.id);
+                    tarjeta.innerHTML = htmlContenido;
+                    grid.appendChild(tarjeta);
+                }
+            });
+
+            espaciosActuales.forEach(el => {
+                const tarjeta = document.getElementById(`card-${el.id}`);
+                if (tarjeta) grid.appendChild(tarjeta); 
             });
         }
 
@@ -596,6 +647,7 @@
             else { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
         };
 
+        // VERSIÓN CON ARREGLO DE LOGO DE IMPRESORA
         window.generarHTMLTicket = function(venta) {
             const fechaF = new Date(venta.fecha).toLocaleString('es-CR');
             let itemsHtml = '';
@@ -619,7 +671,7 @@
 
             return `
                 <div style="text-align:center; margin-bottom:10px;">
-                    <img src="179967.png" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; filter: grayscale(100%); margin: 0 auto 5px auto;" onerror="this.style.display='none'">
+                    <img src="179967.png" style="width: 80px; margin: 0 auto 5px auto; display: block;" onerror="this.style.display='none'">
                     <h2 style="margin: 0 0 2px 0; font-size: 16px; text-transform: uppercase;">Bar Restaurante<br>Alaska</h2>
                 </div>
                 <div style="border-bottom: 1px dashed #000; margin-bottom: 10px;"></div>
@@ -657,7 +709,9 @@
             if(!ventaReciente) return;
             const html = window.generarHTMLTicket(ventaReciente);
             document.getElementById('ticket-container').innerHTML = html;
-            window.print();
+            setTimeout(() => {
+                window.print();
+            }, 500);
         };
         
         window.imprimirTicketDesdeHistorial = function(id) {
@@ -665,7 +719,9 @@
             if(v) {
                 const html = window.generarHTMLTicket(v);
                 document.getElementById('ticket-container').innerHTML = html;
-                window.print();
+                setTimeout(() => {
+                    window.print();
+                }, 500);
             }
         };
 
