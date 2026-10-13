@@ -359,7 +359,7 @@
     <!-- SCRIPT PRINCIPAL -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, setDoc, writeBatch, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, setDoc, writeBatch, getDoc, runTransaction, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBrVAO_tc3pU7wehVEX9q-JUMkSOkTAdG8",
@@ -795,9 +795,10 @@
                         const prod = datosRestaurante.productos.find(p => p.id === idProd);
                         if (prod) {
                             let updates = {};
-                            if (prod.stock !== null && prod.stock !== undefined) updates.stock = prod.stock + cant;
-                            let nuevasVentasTotales = (prod.ventasTotales || 0) - cant;
-                            updates.ventasTotales = nuevasVentasTotales < 0 ? 0 : nuevasVentasTotales;
+                            if (prod.stock !== null && prod.stock !== undefined) {
+                                updates.stock = increment(cant); // Devolvemos el stock al inventario
+                            }
+                            updates.ventasTotales = increment(-cant); // Restamos de las ventas totales
                             batch.update(doc(db, "productos", prod.id), updates);
                         }
                     }
@@ -873,7 +874,6 @@
             }
         };
 
-        // NUEVO: Funciones para Fiados (Optimizada sin doble pregunta)
         window.fiarCuentaActual = async function() {
             if (rolUsuario !== 'admin') {
                 const pin = await window.customPromptPin("Ingrese PIN de Administrador para autorizar el fiado:");
@@ -882,10 +882,8 @@
 
             if (!elementoSeleccionado || !elementoSeleccionado.total) return;
 
-            // Tomamos el nombre directamente de la mesa abierta (Ya no lo pregunta de nuevo)
             const nombreCliente = elementoSeleccionado.cliente || 'Cliente General';
 
-            // Incluimos el nombre directamente en la confirmación para mayor seguridad
             if (!await window.customConfirm(`¿Estás seguro de enviar la cuenta de ₡${elementoSeleccionado.total.toLocaleString()} a nombre de "${nombreCliente}" a Fiados? (Se rebajará el stock pero no entrará dinero a la caja)`)) return;
 
             const espacioCobro = elementoSeleccionado;
@@ -912,19 +910,15 @@
             try {
                 const batch = writeBatch(db);
                 
-                // 1. Guardar en colección de fiados
                 batch.set(doc(collection(db, "cuentas_fiadas")), fiadoNuevo);
 
-                // 2. Rebajar inventario (PERO NO SUMAR A VENTAS TOTALES AÚN)
                 for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
                     const prod = datosRestaurante.productos.find(p => p.id === idProd);
                     if (prod && prod.stock !== null && prod.stock !== undefined) {
-                        let nuevoStock = prod.stock - cant;
-                        batch.update(doc(db, "productos", prod.id), { stock: nuevoStock < 0 ? 0 : nuevoStock });
+                        batch.update(doc(db, "productos", prod.id), { stock: increment(-cant) });
                     }
                 }
 
-                // 3. Limpiar o borrar la mesa
                 if (espacioCobro.id !== 'flash') {
                     const refEspacio = doc(db, "espacios", espacioCobro.id);
                     if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') batch.delete(refEspacio);
@@ -1490,6 +1484,7 @@
 
         window.guardarRondaActual = async function() {
             if (itemsRondaTemporal.length === 0) return window.customAlert('Seleccione productos.');
+            
             if (esCobroRapido) {
                 let suma = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
                 window.cerrarModalProductos();
@@ -1504,14 +1499,39 @@
                 document.getElementById('modal-cobro').classList.remove('hidden');
                 return;
             }
-            if (!elementoSeleccionado) return;
-            if(!elementoSeleccionado.rondas) elementoSeleccionado.rondas = [];
-            elementoSeleccionado.rondas.push({ items: [...itemsRondaTemporal] });
-            let suma = 0; elementoSeleccionado.rondas.forEach(r => r.items.forEach(i => suma += i.precio));
-            elementoSeleccionado.total = suma;
             
-            await updateDoc(doc(db, "espacios", elementoSeleccionado.id), { rondas: elementoSeleccionado.rondas, total: suma });
-            window.actualizarListaPanel(); window.cerrarModalProductos();
+            if (!elementoSeleccionado) return;
+            
+            const nuevaRonda = { items: [...itemsRondaTemporal] };
+            const sumaNueva = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
+            const refEspacio = doc(db, "espacios", elementoSeleccionado.id);
+
+            try {
+                await runTransaction(db, async (transaction) => {
+                    const docEspacio = await transaction.get(refEspacio);
+                    if (!docEspacio.exists()) throw "Error: El espacio no existe.";
+                    
+                    const dataActual = docEspacio.data();
+                    const nuevoTotal = (dataActual.total || 0) + sumaNueva;
+                    
+                    let rondasActuales = dataActual.rondas || [];
+                    rondasActuales.push(nuevaRonda);
+
+                    transaction.update(refEspacio, {
+                        rondas: rondasActuales,
+                        total: nuevoTotal
+                    });
+                    
+                    elementoSeleccionado.rondas = rondasActuales;
+                    elementoSeleccionado.total = nuevoTotal;
+                });
+                
+                window.actualizarListaPanel(); 
+                window.cerrarModalProductos();
+            } catch (error) {
+                console.error(error);
+                window.customAlert("Ocurrió un error al guardar la ronda. Revisa tu conexión.");
+            }
         };
 
         window.seleccionarElemento = async function(id) {
@@ -1522,16 +1542,24 @@
                 if (!nom) return;
 
                 const refEspacio = doc(db, "espacios", id);
-                const docActual = await getDoc(refEspacio);
                 
-                if (docActual.exists() && docActual.data().estado === 'ocupada') {
-                    window.customAlert(`¡Aviso! Otra salonera acaba de ocupar esta mesa con el cliente "${docActual.data().cliente}". Intenta con otro espacio.`);
+                try {
+                    await runTransaction(db, async (transaction) => {
+                        const docActual = await transaction.get(refEspacio);
+                        if (!docActual.exists()) throw "La mesa no existe.";
+                        
+                        if (docActual.data().estado === 'ocupada') {
+                            throw `¡Aviso! Otra salonera acaba de ocupar esta mesa con el cliente "${docActual.data().cliente}".`;
+                        }
+                        
+                        transaction.update(refEspacio, { estado: 'ocupada', cliente: nom });
+                    });
+                    espacio.estado = 'ocupada'; 
+                    espacio.cliente = nom;
+                } catch (error) {
+                    window.customAlert(error);
                     return; 
                 }
-
-                await updateDoc(refEspacio, { estado: 'ocupada', cliente: nom });
-                espacio.estado = 'ocupada'; 
-                espacio.cliente = nom;
             }
             
             elementoSeleccionado = espacio;
@@ -1724,10 +1752,9 @@
                         if (prod) {
                             let updates = {};
                             if (prod.stock !== null && prod.stock !== undefined) {
-                                let nuevoStock = prod.stock - cant;
-                                updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
+                                updates.stock = increment(-cant); 
                             }
-                            updates.ventasTotales = (prod.ventasTotales || 0) + cant;
+                            updates.ventasTotales = increment(cant); 
                             batch.update(doc(db, "productos", prod.id), updates);
                         }
                     }
@@ -1737,10 +1764,9 @@
                         if (prod) {
                             let updates = {};
                             if (prod.stock !== null && prod.stock !== undefined) {
-                                let nuevoStock = prod.stock - cant;
-                                updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
+                                updates.stock = increment(-cant);
                             }
-                            updates.ventasTotales = (prod.ventasTotales || 0) + cant;
+                            updates.ventasTotales = increment(cant);
                             batch.update(doc(db, "productos", prod.id), updates);
                         }
                     }
