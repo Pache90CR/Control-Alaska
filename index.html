@@ -647,7 +647,7 @@
             else { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
         };
 
-        // VERSIÓN CON ARREGLO DE LOGO DE IMPRESORA
+        // VERSIÓN CON TICKET TODO EN NEGRITA Y LOGO CORREGIDO
         window.generarHTMLTicket = function(venta) {
             const fechaF = new Date(venta.fecha).toLocaleString('es-CR');
             let itemsHtml = '';
@@ -662,40 +662,42 @@
             for (let nom in conteo) {
                 const sub = conteo[nom].cant * conteo[nom].precio;
                 itemsHtml += `
-                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px; border-bottom: 1px dotted #ccc; padding-bottom: 2px;">
-                        <span style="flex: 1; padding-right: 5px;">${conteo[nom].cant}x ${nom}</span>
-                        <span style="font-weight: bold;">₡${sub.toLocaleString()}</span>
+                    <div style="display:flex; justify-content:space-between; margin-bottom: 4px; border-bottom: 2px dotted #000; padding-bottom: 4px;">
+                        <span style="flex: 1; padding-right: 5px; font-weight: 900 !important; color: #000 !important;">${conteo[nom].cant}x ${nom}</span>
+                        <span style="font-weight: 900 !important; color: #000 !important;">₡${sub.toLocaleString()}</span>
                     </div>
                 `;
             }
 
             return `
-                <div style="text-align:center; margin-bottom:10px;">
-                    <img src="179967.png" style="width: 80px; margin: 0 auto 5px auto; display: block;" onerror="this.style.display='none'">
-                    <h2 style="margin: 0 0 2px 0; font-size: 16px; text-transform: uppercase;">Bar Restaurante<br>Alaska</h2>
-                </div>
-                <div style="border-bottom: 1px dashed #000; margin-bottom: 10px;"></div>
-                <div style="margin-bottom: 10px; font-size: 12px; text-align: left;">
-                    <p style="margin: 2px 0;"><strong>Fecha:</strong> ${fechaF}</p>
-                    <p style="margin: 2px 0;"><strong>Cliente:</strong> ${venta.cliente || 'General'}</p>
-                    <p style="margin: 2px 0;"><strong>Zona:</strong> ${venta.zona || 'Barra'}</p>
-                    <p style="margin: 2px 0;"><strong>Pago:</strong> ${venta.metodo}</p>
-                </div>
-                <div style="border-bottom: 1px dashed #000; margin-bottom: 10px;"></div>
-                <div style="margin-bottom: 10px; font-size: 12px; text-align: left;">
-                    <div style="display:flex; justify-content:space-between; font-weight:bold; margin-bottom: 5px;">
-                        <span>Descripción</span>
-                        <span>Monto</span>
+                <div style="font-weight: bold !important; color: #000 !important;">
+                    <div style="text-align:center; margin-bottom:10px;">
+                        <img src="179967.png" style="width: 80px; margin: 0 auto 5px auto; display: block;" onerror="this.style.display='none'">
+                        <h2 style="margin: 0 0 2px 0; font-size: 18px; text-transform: uppercase; font-weight: 900 !important; color: #000 !important;">Bar Restaurante<br>Alaska</h2>
                     </div>
-                    ${itemsHtml}
-                </div>
-                <div style="border-bottom: 1px dashed #000; margin-bottom: 10px;"></div>
-                <div style="display:flex; justify-content:space-between; font-size: 16px; font-weight: bold; margin-bottom: 20px;">
-                    <span>TOTAL:</span>
-                    <span>₡${venta.total.toLocaleString()}</span>
-                </div>
-                <div style="text-align:center; font-size: 12px; margin-bottom: 30px;">
-                    <p style="margin: 0;">¡Gracias por su visita!</p>
+                    <div style="border-bottom: 2px dashed #000; margin-bottom: 10px;"></div>
+                    <div style="margin-bottom: 10px; font-size: 13px; text-align: left;">
+                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Fecha: ${fechaF}</p>
+                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Cliente: ${venta.cliente || 'General'}</p>
+                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Zona: ${venta.zona || 'Barra'}</p>
+                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Pago: ${venta.metodo}</p>
+                    </div>
+                    <div style="border-bottom: 2px dashed #000; margin-bottom: 10px;"></div>
+                    <div style="margin-bottom: 10px; font-size: 13px; text-align: left;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom: 5px; text-transform: uppercase;">
+                            <span style="font-weight: 900 !important; color: #000 !important;">Descripción</span>
+                            <span style="font-weight: 900 !important; color: #000 !important;">Monto</span>
+                        </div>
+                        ${itemsHtml}
+                    </div>
+                    <div style="border-bottom: 2px dashed #000; margin-bottom: 10px;"></div>
+                    <div style="display:flex; justify-content:space-between; font-size: 18px; margin-bottom: 20px;">
+                        <span style="font-weight: 900 !important; color: #000 !important;">TOTAL:</span>
+                        <span style="font-weight: 900 !important; color: #000 !important;">₡${venta.total.toLocaleString()}</span>
+                    </div>
+                    <div style="text-align:center; font-size: 13px; margin-bottom: 30px;">
+                        <p style="margin: 0; font-weight: 900 !important; color: #000 !important;">¡Gracias por su visita!</p>
+                    </div>
                 </div>
             `;
         };
