@@ -24,21 +24,8 @@
             body { background-color: white !important; color: black !important; margin: 0; padding: 0; }
             /* Ocultar toda la app web durante la impresión */
             #app-container, .no-print { display: none !important; }
-            
-            /* Mostrar únicamente el contenedor del ticket - AHORA FORZANDO NEGRITA Y MÁXIMO CONTRASTE */
-            #ticket-container { 
-                display: block !important; 
-                width: 100%; 
-                max-width: 80mm; 
-                margin: 0 auto; 
-                padding: 0; 
-                font-family: 'Courier New', Courier, monospace; 
-                color: #000000 !important; /* Negro absoluto */
-                font-weight: 900 !important; /* Negrita extra gruesa */
-                -webkit-print-color-adjust: exact !important; /* Fuerza a imprimir los colores exactos */
-                print-color-adjust: exact !important;
-                text-shadow: 0px 0px 1px rgba(0,0,0,1); /* Pequeño truco para engrosar la letra */
-            }
+            /* Mostrar únicamente el contenedor del ticket */
+            #ticket-container { display: block !important; width: 100%; max-width: 80mm; margin: 0 auto; padding: 0; font-family: 'Courier New', Courier, monospace; color: black; }
             @page { margin: 0; }
         }
     </style>
