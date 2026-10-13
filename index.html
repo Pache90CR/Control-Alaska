@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Bar Restaurante Alaska - Control Total</title>
     
-    <!-- ETIQUETAS PWA PARA INSTALACIÓN -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <link rel="apple-touch-icon" href="179967.png">
@@ -19,12 +18,9 @@
         .pro-scroll::-webkit-scrollbar-track { background: #0f172a; border-radius: 8px; }
         .pro-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 8px; }
         
-        /* ESTILOS ESPECÍFICOS PARA LA IMPRESORA TÉRMICA */
         @media print {
             body { background-color: white !important; color: black !important; margin: 0; padding: 0; }
-            /* Ocultar toda la app web durante la impresión */
             #app-container, .no-print { display: none !important; }
-            /* Mostrar únicamente el contenedor del ticket */
             #ticket-container { display: block !important; width: 100%; max-width: 80mm; margin: 0 auto; padding: 0; font-family: 'Courier New', Courier, monospace; color: black; }
             @page { margin: 0; }
         }
@@ -32,10 +28,8 @@
 </head>
 <body class="bg-slate-900 text-white font-sans antialiased h-screen w-full max-w-[100vw] selection:bg-amber-500 selection:text-slate-900">
 
-    <!-- CONTENEDOR EXCLUSIVO PARA IMPRESIÓN (Oculto en pantalla normal) -->
     <div id="ticket-container" class="hidden"></div>
 
-    <!-- CONTENEDOR PRINCIPAL DE LA APP -->
     <div id="app-container" class="flex flex-col h-screen overflow-hidden w-full relative">
 
         <!-- DIÁLOGOS PERSONALIZADOS -->
@@ -47,7 +41,6 @@
             </div>
         </div>
 
-        <!-- MODAL CUSTOM CONFIRM -->
         <div id="modal-custom-confirm" class="fixed inset-0 bg-slate-950/90 z-[80] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl text-center">
                 <div class="w-12 h-12 rounded-full bg-rose-500/20 text-rose-500 flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-triangle-exclamation"></i></div>
@@ -59,23 +52,21 @@
             </div>
         </div>
 
-        <!-- MODAL ÉXITO Y TICKET -->
         <div id="modal-exito-cobro" class="fixed inset-0 bg-slate-950/90 z-[80] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-emerald-500/30 p-6 rounded-3xl w-full max-w-sm shadow-2xl text-center">
                 <div class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-3xl mx-auto mb-4 shadow-[0_0_15px_rgba(52,211,153,0.3)]"><i class="fa-solid fa-check"></i></div>
-                <h3 class="text-2xl font-black text-white mb-1">¡Cobro Exitoso!</h3>
+                <h3 id="txt-exito-titulo" class="text-2xl font-black text-white mb-1">¡Cobro Exitoso!</h3>
                 <p id="txt-exito-metodo" class="text-slate-400 text-sm font-bold mb-4"></p>
                 <div class="bg-slate-950 rounded-xl py-4 mb-6 border border-slate-800">
                     <p id="txt-exito-monto" class="text-4xl font-black text-emerald-400"></p>
                 </div>
                 <div class="space-y-3">
                     <button onclick="window.imprimirTicketReciente()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold py-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2 text-lg"><i class="fa-solid fa-print"></i> Imprimir Ticket</button>
-                    <button onclick="window.cerrarModalExito()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition border border-slate-700">Continuar al Salón</button>
+                    <button onclick="window.cerrarModalExito()" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 rounded-xl transition border border-slate-700">Continuar</button>
                 </div>
             </div>
         </div>
 
-        <!-- PROMPT PARA TEXTO (NOMBRES DE CLIENTES) -->
         <div id="modal-custom-prompt" class="fixed inset-0 bg-slate-950/90 z-[70] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                 <p id="prompt-msg" class="text-slate-200 text-lg font-bold mb-4 text-center"></p>
@@ -87,7 +78,6 @@
             </div>
         </div>
 
-        <!-- PROMPT EXCLUSIVO PARA PIN DE ADMIN -->
         <div id="modal-pin-prompt" class="fixed inset-0 bg-slate-950/90 z-[70] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 p-6 rounded-2xl w-full max-w-sm shadow-2xl">
                 <p id="pin-msg" class="text-slate-200 text-lg font-bold mb-4 text-center"></p>
@@ -99,24 +89,70 @@
             </div>
         </div>
 
-        <!-- MODAL DE COBRO -->
+        <!-- MODAL DE COBRO (Mejorado con Pago Dividido) -->
         <div id="modal-cobro" class="fixed inset-0 bg-slate-950/90 z-[55] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
-            <div class="bg-slate-900 border border-slate-700 p-6 rounded-3xl w-full max-w-sm shadow-2xl">
-                <div class="text-center mb-6 border-b border-slate-800 pb-4">
-                    <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Total a Cobrar</h3>
-                    <p id="txt-total-cobro" class="text-4xl font-black text-emerald-400">₡0</p>
+            <div class="bg-slate-900 border border-slate-700 p-6 rounded-3xl w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh] pro-scroll">
+                
+                <div id="vista-cobro-principal">
+                    <div class="text-center mb-6 border-b border-slate-800 pb-4">
+                        <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider mb-1">Total a Cobrar</h3>
+                        <p id="txt-total-cobro" class="text-4xl font-black text-emerald-400">₡0</p>
+                    </div>
+                    <p class="text-center text-slate-300 font-bold mb-4">Método de pago rápido</p>
+                    <div class="space-y-3 mb-4">
+                        <button onclick="window.procesarPagoConfirmado('Efectivo', null)" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-solid fa-money-bill-wave text-emerald-500"></i> Efectivo</button>
+                        <button onclick="window.procesarPagoConfirmado('Tarjeta', null)" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-regular fa-credit-card text-blue-400"></i> Tarjeta</button>
+                        <button onclick="window.procesarPagoConfirmado('SINPE', null)" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-solid fa-mobile-screen text-rose-500"></i> SINPE Móvil</button>
+                    </div>
+                    
+                    <div class="relative py-2 mb-4">
+                        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-700"></div></div>
+                        <div class="relative flex justify-center"><span class="bg-slate-900 px-3 text-xs text-slate-500 font-bold uppercase">Opciones Avanzadas</span></div>
+                    </div>
+
+                    <button onclick="window.mostrarVistaPagoDividido()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg mb-4 shadow-lg"><i class="fa-solid fa-chart-pie"></i> Pago Dividido</button>
+                    
+                    <button onclick="window.cerrarModalCobro()" class="w-full mt-4 text-slate-500 font-bold py-2 hover:text-white transition">Cancelar</button>
                 </div>
-                <p class="text-center text-slate-300 font-bold mb-4">Método de pago</p>
-                <div class="space-y-3">
-                    <button onclick="window.procesarPagoConfirmado('Efectivo')" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-solid fa-money-bill-wave text-emerald-500"></i> Efectivo</button>
-                    <button onclick="window.procesarPagoConfirmado('Tarjeta')" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-regular fa-credit-card text-blue-400"></i> Tarjeta</button>
-                    <button onclick="window.procesarPagoConfirmado('SINPE')" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 text-lg"><i class="fa-solid fa-mobile-screen text-rose-500"></i> SINPE Móvil</button>
+
+                <!-- VISTA PAGO DIVIDIDO -->
+                <div id="vista-cobro-dividido" class="hidden">
+                    <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
+                        <button onclick="window.volverCobroPrincipal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-arrow-left text-xl"></i></button>
+                        <h3 class="text-xl font-black text-white">Dividir Pago</h3>
+                        <div class="w-6"></div>
+                    </div>
+                    
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-6 text-center shadow-inner">
+                        <p class="text-xs text-slate-500 font-bold uppercase mb-1">Monto Total</p>
+                        <p id="txt-dividido-total" class="text-2xl font-black text-amber-400">₡0</p>
+                    </div>
+
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="flex justify-between text-sm font-bold text-slate-300 mb-1"><span class="flex items-center gap-2"><i class="fa-solid fa-money-bill-wave text-emerald-500"></i> Efectivo</span></label>
+                            <input type="number" id="input-div-efectivo" oninput="window.calcularRestanteDividido()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:outline-none focus:border-amber-500 text-right" placeholder="₡0">
+                        </div>
+                        <div>
+                            <label class="flex justify-between text-sm font-bold text-slate-300 mb-1"><span class="flex items-center gap-2"><i class="fa-regular fa-credit-card text-blue-400"></i> Tarjeta</span></label>
+                            <input type="number" id="input-div-tarjeta" oninput="window.calcularRestanteDividido()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:outline-none focus:border-amber-500 text-right" placeholder="₡0">
+                        </div>
+                        <div>
+                            <label class="flex justify-between text-sm font-bold text-slate-300 mb-1"><span class="flex items-center gap-2"><i class="fa-solid fa-mobile-screen text-rose-500"></i> SINPE</span></label>
+                            <input type="number" id="input-div-sinpe" oninput="window.calcularRestanteDividido()" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-lg font-bold text-white focus:outline-none focus:border-amber-500 text-right" placeholder="₡0">
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 border-t-2 border-slate-700 pt-4 mb-6 flex justify-between items-center">
+                        <span class="text-slate-400 font-bold">Faltan:</span>
+                        <span id="txt-dividido-restante" class="text-xl font-black text-rose-500">₡0</span>
+                    </div>
+
+                    <button id="btn-confirmar-dividido" onclick="window.procesarPagoConfirmado('Dividido', null)" class="w-full bg-emerald-600 text-white font-bold py-4 rounded-xl transition shadow-lg opacity-50 cursor-not-allowed flex justify-center items-center gap-2" disabled><i class="fa-solid fa-check"></i> Confirmar Pago Mixto</button>
                 </div>
-                <button onclick="window.cerrarModalCobro()" class="w-full mt-4 text-slate-500 font-bold py-2 hover:text-white transition">Cancelar</button>
             </div>
         </div>
 
-        <!-- MODAL DE INGRESO -->
         <div id="modal-login" class="fixed inset-0 bg-slate-950 z-50 flex items-center justify-center p-4 no-print">
             <div class="bg-slate-900 border border-slate-700 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center">
                 <img src="179967.png" alt="Logo Alaska" class="w-32 h-32 mx-auto mb-6 rounded-full shadow-lg border-4 border-slate-800 object-cover" onerror="this.src='https://via.placeholder.com/150/1e293b/fbbf24?text=Alaska'">
@@ -129,7 +165,6 @@
             </div>
         </div>
 
-        <!-- MODAL DE APERTURA DE CAJA -->
         <div id="modal-caja" class="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 p-8 rounded-3xl w-full max-w-md shadow-2xl">
                 <h3 class="text-2xl font-black text-amber-400 mb-2"><i class="fa-solid fa-cash-register mr-2"></i> Apertura de Turno</h3>
@@ -143,7 +178,6 @@
             </div>
         </div>
 
-        <!-- MODAL SELECCIÓN DE VARIANTES EN EL SALÓN -->
         <div id="modal-seleccion-variantes" class="fixed inset-0 bg-slate-950/90 z-[45] flex items-end sm:items-center justify-center p-4 hidden backdrop-blur-sm transition-all no-print">
             <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden pb-6 sm:pb-0">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
@@ -154,7 +188,6 @@
             </div>
         </div>
 
-        <!-- MODAL SELECCIÓN DE PRODUCTOS -->
         <div id="modal-agregar-producto" class="fixed inset-0 bg-slate-950/90 z-40 flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-3xl h-[85vh] flex flex-col shadow-2xl overflow-hidden">
                 <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
@@ -181,7 +214,6 @@
             </div>
         </div>
 
-        <!-- MODAL CREAR PRODUCTO (ADMIN) -->
         <div id="modal-admin-producto" class="fixed inset-0 bg-slate-950/90 z-[60] flex items-center justify-center p-4 hidden backdrop-blur-sm overflow-y-auto no-print">
             <div class="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-2xl my-4">
                 <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900 rounded-t-3xl">
@@ -238,7 +270,6 @@
             </div>
         </div>
 
-        <!-- HEADER PRINCIPAL -->
         <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-col sm:flex-row justify-between sm:items-center shadow-lg gap-3 relative z-10 w-full no-print">
             <div class="flex items-center space-x-3">
                 <img src="179967.png" alt="Logo Alaska" class="w-12 h-12 rounded-full border border-slate-700 object-cover" onerror="this.src='https://via.placeholder.com/48/1e293b/fbbf24?text=A'">
@@ -247,7 +278,6 @@
                     <p id="info-caja-header" class="text-xs text-emerald-500 font-bold hidden bg-emerald-500/10 inline-block px-2 py-0.5 rounded-full mt-1 border border-emerald-500/20">Caja abierta</p>
                 </div>
             </div>
-            <!-- PESTAÑAS Y BOTÓN CERRAR SESIÓN -->
             <div id="tabs-operacion" class="flex overflow-x-auto bg-slate-950 p-1 rounded-xl border border-slate-800 hide-scrollbar shrink-0 w-full sm:w-auto gap-1">
                 <button onclick="window.cambiarVista('barra')" id="btn-tab-barra" class="px-5 py-2 rounded-lg font-semibold transition bg-amber-500 text-slate-900 text-sm whitespace-nowrap">Barra</button>
                 <button onclick="window.cambiarVista('mesas')" id="btn-tab-mesas" class="px-5 py-2 rounded-lg font-semibold transition text-slate-400 hover:text-white text-sm whitespace-nowrap">Mesas</button>
@@ -259,12 +289,10 @@
             <button onclick="window.cambiarVista('barra')" id="btn-volver-operacion" class="hidden px-5 py-2 rounded-xl font-bold bg-slate-800 border border-slate-700 text-slate-300 text-sm whitespace-nowrap w-max"><i class="fa-solid fa-arrow-left mr-2"></i> Volver a Salón</button>
         </header>
 
-        <!-- CONTENIDO PRINCIPAL -->
         <main class="flex-1 flex overflow-hidden relative bg-slate-950 w-full no-print">
             <section class="flex-1 p-4 md:p-6 overflow-y-auto pro-scroll w-full" id="area-operacion">
                 <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-3">
                     <h2 id="titulo-vista" class="text-2xl font-black text-slate-100">Control de Barra</h2>
-                    <!-- BOTONES DE ACCIÓN: VENTA RÁPIDA Y CLIENTE EXTRA -->
                     <div class="flex gap-2 w-full sm:w-auto">
                         <button onclick="window.abrirCobroRapido()" class="flex-1 sm:flex-none bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-900 font-bold py-2 px-4 rounded-xl shadow-lg text-sm flex items-center justify-center gap-2 transition"><i class="fa-solid fa-bolt"></i> Venta Rápida</button>
                         <button id="btn-agregar-barra" onclick="window.agregarClienteExtraBarra()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded-xl shadow-lg text-sm flex items-center justify-center gap-2 transition"><i class="fa-solid fa-user-plus"></i> Cliente Extra</button>
@@ -273,7 +301,6 @@
                 <div id="grid-elementos" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4 pb-20 w-full"></div>
             </section>
 
-            <!-- SECCIÓN ADMIN -->
             <section class="flex-1 hidden w-full bg-slate-950 relative flex-col md:flex-row overflow-hidden" id="area-admin">
                 <div class="md:hidden bg-slate-900 border-b border-slate-800 p-3 flex items-center gap-3 shadow-md z-20 w-full shrink-0">
                     <button onclick="window.toggleAdminSidebar(true)" class="text-slate-300 hover:text-white px-4 py-2 bg-slate-800 border border-slate-700 rounded-xl transition"><i class="fa-solid fa-bars text-lg"></i></button>
@@ -288,6 +315,8 @@
                         <button onclick="window.cambiarSubVistaAdmin('dashboard')" id="btn-admin-dashboard" class="w-full text-left px-6 py-4 text-amber-500 bg-slate-800/80 border-r-4 border-amber-500 font-bold transition flex items-center gap-3"><i class="fa-solid fa-chart-pie w-5"></i> Dashboard</button>
                         <button onclick="window.cambiarSubVistaAdmin('caja')" id="btn-admin-caja" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-cash-register w-5"></i> Cierres de Caja</button>
                         <button onclick="window.cambiarSubVistaAdmin('historial')" id="btn-admin-historial" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-file-invoice-dollar w-5"></i> Historial de Ventas</button>
+                        <!-- NUEVA PESTAÑA FIADOS -->
+                        <button onclick="window.cambiarSubVistaAdmin('fiados')" id="btn-admin-fiados" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-book-open text-rose-500 w-5"></i> Cuentas Fiadas</button>
                         <button onclick="window.cambiarSubVistaAdmin('menu')" id="btn-admin-menu" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-burger w-5"></i> Menú e Inventario</button>
                         <button onclick="window.cambiarSubVistaAdmin('categorias')" id="btn-admin-categorias" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-tags w-5"></i> Categorías</button>
                         <button onclick="window.cambiarSubVistaAdmin('espacios')" id="btn-admin-espacios" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-chair w-5"></i> Zonas y Espacios</button>
@@ -297,7 +326,6 @@
                 <div id="contenedor-admin" class="flex-1 p-4 md:p-8 overflow-y-auto pro-scroll w-full bg-slate-950"></div>
             </section>
 
-            <!-- PANEL LATERAL DE CUENTA CON ESCOBITA -->
             <aside id="panel-cuenta" class="fixed inset-y-0 right-0 w-full md:w-96 bg-slate-900 border-l border-slate-800 flex-col justify-between shadow-2xl z-30 hidden transition-all">
                 <div class="p-5 border-b border-slate-800 flex justify-between items-center bg-slate-900">
                     <div class="w-full overflow-hidden pr-4">
@@ -312,12 +340,15 @@
                 <div class="flex-1 p-4 overflow-y-auto pro-scroll bg-slate-900/50">
                     <div id="lista-items-cuenta" class="space-y-2"></div>
                 </div>
-                <div class="p-5 border-t border-slate-800 bg-slate-900">
-                    <div class="flex justify-between items-center mb-4 text-xl font-black">
+                <div class="p-5 border-t border-slate-800 bg-slate-900 space-y-3">
+                    <div class="flex justify-between items-center mb-1 text-xl font-black">
                         <span class="text-slate-300">Total:</span>
                         <span id="panel-total" class="text-emerald-400">₡0</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-3">
+                    
+                    <button onclick="window.fiarCuentaActual()" class="w-full text-rose-400 text-xs font-bold uppercase tracking-wide hover:text-rose-300 transition text-right"><i class="fa-solid fa-book-open mr-1"></i> Pasar a Fiados (Admin)</button>
+
+                    <div class="grid grid-cols-2 gap-3 pt-2 border-t border-slate-800">
                         <button onclick="window.abrirModalAgregar()" class="bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold py-4 rounded-xl border border-slate-700 transition flex items-center justify-center gap-2"><i class="fa-solid fa-cart-plus"></i> Menú</button>
                         <button onclick="window.iniciarCobro()" class="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"><i class="fa-solid fa-cash-register"></i> Cobrar</button>
                     </div>
@@ -351,8 +382,8 @@
         let esCobroRapido = false; 
         
         let ventaReciente = null;
+        let montoCobroActual = 0; // Para el pago dividido
 
-        // NUEVO: Obtener la fecha local real del dispositivo (Costa Rica)
         const fechaActual = new Date();
         const año = fechaActual.getFullYear();
         const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
@@ -378,9 +409,8 @@
         let categoriasColapsadas = new Set();
 
         const categoriasPredeterminadas = ['REFRESCOS', 'CERVEZAS', 'COMIDAS', 'LICORES'];
-        let datosRestaurante = { barra: [], mesas: [], vip: [], productos: [], categorias: [], ventas: [] };
+        let datosRestaurante = { barra: [], mesas: [], vip: [], productos: [], categorias: [], ventas: [], fiados: [] };
 
-        // ESCUCHAS DE FIREBASE (CON SINCRONIZACIÓN EN VIVO)
         onSnapshot(collection(db, "espacios"), (snapshot) => {
             datosRestaurante.barra = []; datosRestaurante.mesas = []; datosRestaurante.vip = [];
             let espacioAunExiste = false;
@@ -452,6 +482,13 @@
             if(vistaActual === 'admin' && (adminSubVista === 'dashboard' || adminSubVista === 'historial')) renderizarModuloAdmin();
         });
 
+        // NUEVO: Escuchar colección de Fiados
+        onSnapshot(collection(db, "cuentas_fiadas"), (snapshot) => {
+            datosRestaurante.fiados = [];
+            snapshot.forEach((doc) => { const data = doc.data(); data.id = doc.id; datosRestaurante.fiados.push(data); });
+            if(vistaActual === 'admin' && adminSubVista === 'fiados') renderizarModuloAdmin();
+        });
+
         window.calcularVentasTurno = function() {
             ventasTotalesTurno = 0; ventasEfectivoTurno = 0; ventasTarjetaTurno = 0; ventasSinpeTurno = 0;
             if(cajaAbierta && fechaAperturaCaja) {
@@ -459,9 +496,17 @@
                 datosRestaurante.ventas.forEach(v => {
                     if(v.fecha && new Date(v.fecha) >= fechaApertura) {
                         ventasTotalesTurno += v.total;
-                        if(v.metodo === 'Efectivo') ventasEfectivoTurno += v.total;
-                        else if(v.metodo === 'Tarjeta') ventasTarjetaTurno += v.total;
-                        else if(v.metodo === 'SINPE') ventasSinpeTurno += v.total;
+                        
+                        // Lógica para registrar métodos si fue pago dividido
+                        if (v.metodo === 'Dividido' && v.desglose) {
+                            ventasEfectivoTurno += (v.desglose.Efectivo || 0);
+                            ventasTarjetaTurno += (v.desglose.Tarjeta || 0);
+                            ventasSinpeTurno += (v.desglose.SINPE || 0);
+                        } else {
+                            if(v.metodo === 'Efectivo') ventasEfectivoTurno += v.total;
+                            else if(v.metodo === 'Tarjeta') ventasTarjetaTurno += v.total;
+                            else if(v.metodo === 'SINPE') ventasSinpeTurno += v.total;
+                        }
                     }
                 });
             }
@@ -477,7 +522,6 @@
             return new Promise((resolve) => {
                 document.getElementById('confirm-msg').innerText = msg;
                 document.getElementById('modal-custom-confirm').classList.remove('hidden');
-                
                 window.aceptarConfirm = () => { document.getElementById('modal-custom-confirm').classList.add('hidden'); resolve(true); };
                 window.cancelarConfirm = () => { document.getElementById('modal-custom-confirm').classList.add('hidden'); resolve(false); };
             });
@@ -581,7 +625,6 @@
             window.cerrarPanel();
         };
 
-        // VERSIÓN OPTIMIZADA SÚPER RÁPIDA (Evita parpadeos y retrasos)
         function renderizarGridOperacion() {
             const grid = document.getElementById('grid-elementos');
             const espaciosActuales = datosRestaurante[vistaActual] || [];
@@ -647,7 +690,6 @@
             else { sidebar.classList.add('-translate-x-full'); overlay.classList.add('hidden'); }
         };
 
-        // VERSIÓN CON TICKET TODO EN NEGRITA Y LOGO CORREGIDO
         window.generarHTMLTicket = function(venta) {
             const fechaF = new Date(venta.fecha).toLocaleString('es-CR');
             let itemsHtml = '';
@@ -669,6 +711,18 @@
                 `;
             }
 
+            // Desglose de pago si es dividido
+            let strMetodo = venta.metodo;
+            let desgloseHtml = '';
+            if (venta.metodo === 'Dividido' && venta.desglose) {
+                strMetodo = 'Pago Dividido';
+                desgloseHtml = `<div style="margin-top: 10px; font-size: 12px;">`;
+                if(venta.desglose.Efectivo) desgloseHtml += `<div style="display:flex; justify-content:space-between;"><span style="font-weight: 900 !important; color: #000 !important;">En Efectivo:</span><span style="font-weight: 900 !important; color: #000 !important;">₡${venta.desglose.Efectivo.toLocaleString()}</span></div>`;
+                if(venta.desglose.Tarjeta) desgloseHtml += `<div style="display:flex; justify-content:space-between;"><span style="font-weight: 900 !important; color: #000 !important;">En Tarjeta:</span><span style="font-weight: 900 !important; color: #000 !important;">₡${venta.desglose.Tarjeta.toLocaleString()}</span></div>`;
+                if(venta.desglose.SINPE) desgloseHtml += `<div style="display:flex; justify-content:space-between;"><span style="font-weight: 900 !important; color: #000 !important;">En SINPE:</span><span style="font-weight: 900 !important; color: #000 !important;">₡${venta.desglose.SINPE.toLocaleString()}</span></div>`;
+                desgloseHtml += `</div>`;
+            }
+
             return `
                 <div style="font-weight: bold !important; color: #000 !important;">
                     <div style="text-align:center; margin-bottom:10px;">
@@ -680,7 +734,7 @@
                         <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Fecha: ${fechaF}</p>
                         <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Cliente: ${venta.cliente || 'General'}</p>
                         <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Zona: ${venta.zona || 'Barra'}</p>
-                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Pago: ${venta.metodo}</p>
+                        <p style="margin: 3px 0; font-weight: 900 !important; color: #000 !important;">Pago: ${strMetodo}</p>
                     </div>
                     <div style="border-bottom: 2px dashed #000; margin-bottom: 10px;"></div>
                     <div style="margin-bottom: 10px; font-size: 13px; text-align: left;">
@@ -691,11 +745,12 @@
                         ${itemsHtml}
                     </div>
                     <div style="border-bottom: 2px dashed #000; margin-bottom: 10px;"></div>
-                    <div style="display:flex; justify-content:space-between; font-size: 18px; margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; font-size: 18px; margin-bottom: 10px;">
                         <span style="font-weight: 900 !important; color: #000 !important;">TOTAL:</span>
                         <span style="font-weight: 900 !important; color: #000 !important;">₡${venta.total.toLocaleString()}</span>
                     </div>
-                    <div style="text-align:center; font-size: 13px; margin-bottom: 30px;">
+                    ${desgloseHtml}
+                    <div style="text-align:center; font-size: 13px; margin-top: 30px; margin-bottom: 30px;">
                         <p style="margin: 0; font-weight: 900 !important; color: #000 !important;">¡Gracias por su visita!</p>
                     </div>
                 </div>
@@ -711,9 +766,7 @@
             if(!ventaReciente) return;
             const html = window.generarHTMLTicket(ventaReciente);
             document.getElementById('ticket-container').innerHTML = html;
-            setTimeout(() => {
-                window.print();
-            }, 500);
+            setTimeout(() => { window.print(); }, 500);
         };
         
         window.imprimirTicketDesdeHistorial = function(id) {
@@ -721,62 +774,41 @@
             if(v) {
                 const html = window.generarHTMLTicket(v);
                 document.getElementById('ticket-container').innerHTML = html;
-                setTimeout(() => {
-                    window.print();
-                }, 500);
+                setTimeout(() => { window.print(); }, 500);
             }
         };
 
-        // NUEVA FUNCIÓN PARA ANULAR VENTAS Y REVIVIR LA MESA
         window.anularVentaHistorial = async function(idVenta) {
             const pin = await window.customPromptPin("Ingrese PIN de Administrador para anular esta venta:");
-            if (pin !== pinAdmin) {
-                return window.customAlert("PIN incorrecto. No se puede anular la venta.");
-            }
+            if (pin !== pinAdmin) return window.customAlert("PIN incorrecto. No se puede anular la venta.");
 
-            if (!await window.customConfirm("¿Estás seguro? Se borrará el ticket, se devolverá el inventario y la cuenta REAPARECERÁ en el salón para cobrarse de nuevo.")) {
-                return;
-            }
+            if (!await window.customConfirm("¿Estás seguro? Se borrará el ticket, se devolverá el inventario y la cuenta REAPARECERÁ en el salón para cobrarse de nuevo.")) return;
 
             const ventaObj = datosRestaurante.ventas.find(v => v.id === idVenta);
-            if (!ventaObj) {
-                return window.customAlert("No se encontró la venta en el sistema.");
-            }
+            if (!ventaObj) return window.customAlert("No se encontró la venta en el sistema.");
 
             try {
                 const batch = writeBatch(db);
-
-                // 1. Eliminar el documento de la venta del historial
                 batch.delete(doc(db, "ventas_historial", idVenta));
 
-                // 2. Devolver stock y restar ventas totales a los productos involucrados
                 if (ventaObj.items && ventaObj.items.length > 0) {
                     let itemsDevolver = {};
-                    ventaObj.items.forEach(item => {
-                        if (item.id) {
-                            itemsDevolver[item.id] = (itemsDevolver[item.id] || 0) + 1;
-                        }
-                    });
+                    ventaObj.items.forEach(item => { if (item.id) itemsDevolver[item.id] = (itemsDevolver[item.id] || 0) + 1; });
 
                     for (const [idProd, cant] of Object.entries(itemsDevolver)) {
                         const prod = datosRestaurante.productos.find(p => p.id === idProd);
                         if (prod) {
                             let updates = {};
-                            if (prod.stock !== null && prod.stock !== undefined) {
-                                updates.stock = prod.stock + cant;
-                            }
+                            if (prod.stock !== null && prod.stock !== undefined) updates.stock = prod.stock + cant;
                             let nuevasVentasTotales = (prod.ventasTotales || 0) - cant;
                             updates.ventasTotales = nuevasVentasTotales < 0 ? 0 : nuevasVentasTotales;
-
                             batch.update(doc(db, "productos", prod.id), updates);
                         }
                     }
                 }
 
-                // Ejecutar los cambios de borrado de venta y devolución de stock
                 await batch.commit();
 
-                // 3. REVIVIR LA MESA EN EL SALÓN (Como un espacio temporal seguro)
                 if (ventaObj.items && ventaObj.items.length > 0) {
                     await addDoc(collection(db, "espacios"), { 
                         nombre: `${ventaObj.zona || 'Mesa'} (Reversado)`, 
@@ -788,12 +820,9 @@
                         esTemporal: true 
                     });
                 }
-
                 window.customAlert("¡Venta anulada! La cuenta volvió a aparecer en el salón con todos sus productos listos para corregir.");
-
             } catch (error) {
-                console.error("Error al anular venta:", error);
-                window.customAlert("Ocurrió un error al procesar la anulación. Revisa tu conexión.");
+                console.error("Error al anular venta:", error); window.customAlert("Ocurrió un error al procesar la anulación. Revisa tu conexión.");
             }
         };
 
@@ -805,8 +834,8 @@
 
         window.cambiarSubVistaAdmin = function(vista) {
             adminSubVista = vista;
-            const subs = ['dashboard', 'caja', 'historial', 'menu', 'categorias', 'espacios']; 
-            const nombresTitulos = { dashboard: 'Dashboard', caja: 'Cierres de Caja', historial: 'Historial de Ventas', menu: 'Menú e Inventario', categorias: 'Categorías', espacios: 'Zonas y Espacios' };
+            const subs = ['dashboard', 'caja', 'historial', 'fiados', 'menu', 'categorias', 'espacios']; 
+            const nombresTitulos = { dashboard: 'Dashboard', caja: 'Cierres de Caja', historial: 'Historial de Ventas', fiados: 'Cuentas Fiadas', menu: 'Menú e Inventario', categorias: 'Categorías', espacios: 'Zonas y Espacios' };
             
             subs.forEach(s => {
                 const btn = document.getElementById(`btn-admin-${s}`);
@@ -846,6 +875,90 @@
                 await updateDoc(doc(db, "productos", id), { stock: nuevoStock });
                 window.customAlert(`¡Listo! Se agregaron ${cantidadIngresada} unidades a ${nombre}. Nuevo stock: ${nuevoStock}`);
             }
+        };
+
+        // NUEVO: Funciones para Fiados
+        window.fiarCuentaActual = async function() {
+            if (rolUsuario !== 'admin') {
+                const pin = await window.customPromptPin("Ingrese PIN de Administrador para autorizar el fiado:");
+                if (pin !== pinAdmin) return window.customAlert("PIN incorrecto. No autorizado.");
+            }
+
+            if (!elementoSeleccionado || !elementoSeleccionado.total) return;
+
+            const nombreCliente = await window.customPrompt("¿A nombre de quién quedará este fiado?", elementoSeleccionado.cliente);
+            if (!nombreCliente) return;
+
+            if (!await window.customConfirm(`¿Estás seguro de enviar la cuenta de ₡${elementoSeleccionado.total.toLocaleString()} a Fiados? (Se rebajará el stock pero no entrará dinero a la caja)`)) return;
+
+            const espacioCobro = elementoSeleccionado;
+            let itemsParaFiado = [];
+            let cantidadesVendidasPorId = {};
+            
+            if (espacioCobro.rondas) {
+                espacioCobro.rondas.forEach(ronda => {
+                    ronda.items.forEach(item => {
+                        itemsParaFiado.push(item);
+                        if (item.id) cantidadesVendidasPorId[item.id] = (cantidadesVendidasPorId[item.id] || 0) + 1;
+                    });
+                });
+            }
+
+            const fiadoNuevo = { 
+                fechaCreacion: new Date().toISOString(), 
+                total: espacioCobro.total, 
+                cliente: nombreCliente, 
+                zonaOrigen: espacioCobro.nombre || 'Barra',
+                items: itemsParaFiado
+            };
+
+            try {
+                const batch = writeBatch(db);
+                
+                // 1. Guardar en colección de fiados
+                batch.set(doc(collection(db, "cuentas_fiadas")), fiadoNuevo);
+
+                // 2. Rebajar inventario (PERO NO SUMAR A VENTAS TOTALES AÚN)
+                for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
+                    const prod = datosRestaurante.productos.find(p => p.id === idProd);
+                    if (prod && prod.stock !== null && prod.stock !== undefined) {
+                        let nuevoStock = prod.stock - cant;
+                        batch.update(doc(db, "productos", prod.id), { stock: nuevoStock < 0 ? 0 : nuevoStock });
+                    }
+                }
+
+                // 3. Limpiar o borrar la mesa
+                if (espacioCobro.id !== 'flash') {
+                    const refEspacio = doc(db, "espacios", espacioCobro.id);
+                    if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') batch.delete(refEspacio);
+                    else batch.update(refEspacio, { estado: 'libre', cliente: '', total: 0, rondas: [] });
+                }
+
+                await batch.commit();
+
+                window.cerrarPanel();
+                window.customAlert(`La cuenta de ${nombreCliente} fue guardada en Cuentas Fiadas.`);
+                if (espacioCobro.id === 'flash') { elementoSeleccionado = null; esCobroRapido = false; }
+
+            } catch (error) {
+                console.error("Error al fiar:", error); window.customAlert("Ocurrió un error al guardar el fiado.");
+            }
+        };
+
+        window.cobrarFiado = async function(idFiado, cliente, monto) {
+            if (!cajaAbierta) return window.customAlert('La caja está cerrada. Debes abrir turno para poder cobrar un fiado e ingresarlo a la caja.');
+            
+            // Reutilizamos el modal de cobro normal para cobrar el fiado
+            elementoSeleccionado = { id: 'fiado_pendiente', fiadoId: idFiado, cliente: cliente, total: monto, nombre: 'Pago de Fiado', categoria: 'admin' };
+            montoCobroActual = monto;
+            
+            document.getElementById('txt-total-cobro').innerText = `₡${monto.toLocaleString()}`; 
+            
+            // Resetear vistas del modal
+            document.getElementById('vista-cobro-principal').classList.remove('hidden');
+            document.getElementById('vista-cobro-dividido').classList.add('hidden');
+            
+            document.getElementById('modal-cobro').classList.remove('hidden'); 
         };
 
         function renderizarModuloAdmin() {
@@ -991,11 +1104,17 @@
                         if(v.metodo === 'Efectivo') eFiltro += v.total;
                         else if(v.metodo === 'Tarjeta') tFiltroTarj += v.total;
                         else if(v.metodo === 'SINPE') sFiltro += v.total;
+                        else if(v.metodo === 'Dividido' && v.desglose) {
+                            eFiltro += (v.desglose.Efectivo || 0);
+                            tFiltroTarj += (v.desglose.Tarjeta || 0);
+                            sFiltro += (v.desglose.SINPE || 0);
+                        }
 
                         const fechaFormateada = new Date(v.fecha).toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' });
                         let icon = 'fa-money-bill-wave text-emerald-500';
                         if(v.metodo === 'Tarjeta') icon = 'fa-credit-card text-blue-400';
                         else if(v.metodo === 'SINPE') icon = 'fa-mobile-screen text-rose-500';
+                        else if(v.metodo === 'Dividido') icon = 'fa-chart-pie text-indigo-400';
 
                         listHtml += `<div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 shadow-md hover:border-slate-600 transition">
                             <div>
@@ -1028,6 +1147,46 @@
                 html += `</div>`;
                 cont.innerHTML = html;
             } 
+            // NUEVA VISTA: FIADOS
+            else if (adminSubVista === 'fiados') {
+                let html = `<div class="max-w-5xl mx-auto w-full pb-20">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-black text-rose-400"><i class="fa-solid fa-book-open mr-2"></i>Cuentas Fiadas (Pendientes)</h2>
+                    </div>`;
+
+                if(datosRestaurante.fiados.length === 0) {
+                    html += `<div class="text-center py-12 bg-slate-900 rounded-2xl border border-slate-800 shadow-md"><i class="fa-solid fa-face-smile text-5xl text-emerald-600 mb-4"></i><p class="text-slate-400 font-bold">No hay clientes con cuentas fiadas. ¡Todo está pago!</p></div>`;
+                } else {
+                    let totalFiado = 0;
+                    let listHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">`;
+                    datosRestaurante.fiados.sort((a,b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion)).forEach((f) => {
+                        totalFiado += f.total;
+                        const fFecha = new Date(f.fechaCreacion).toLocaleString('es-CR', { dateStyle: 'short', timeStyle: 'short' });
+                        listHtml += `<div class="bg-slate-900 border-l-4 border-rose-500 p-5 rounded-xl shadow-md flex flex-col justify-between">
+                            <div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <h3 class="text-lg font-black text-white">${f.cliente}</h3>
+                                    <span class="text-xs font-bold text-slate-400 bg-slate-950 px-2 py-1 rounded-md">${fFecha}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 uppercase font-bold mb-4">Origen: ${f.zonaOrigen}</p>
+                            </div>
+                            <div class="flex justify-between items-end border-t border-slate-800 pt-3">
+                                <span class="text-2xl font-black text-rose-400">₡${f.total.toLocaleString()}</span>
+                                <button onclick="window.cobrarFiado('${f.id}', '${f.cliente}', ${f.total})" class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold shadow-md transition flex items-center gap-2"><i class="fa-solid fa-cash-register"></i> Cobrar</button>
+                            </div>
+                        </div>`;
+                    });
+                    listHtml += `</div>`;
+
+                    html += `<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl shadow-md mb-6 flex justify-between items-center">
+                        <span class="text-slate-400 font-bold uppercase text-sm">Dinero en la calle (Total Fiado):</span>
+                        <span class="text-2xl font-black text-rose-500">₡${totalFiado.toLocaleString()}</span>
+                    </div>`;
+                    html += listHtml;
+                }
+                html += `</div>`;
+                cont.innerHTML = html;
+            }
             else if(adminSubVista === 'menu') {
                 let html = `<div class="max-w-5xl mx-auto w-full pb-20"><div class="flex flex-col sm:flex-row justify-between sm:items-center mb-6 gap-4"><h2 class="text-2xl font-black text-slate-100 hidden md:block">Menú e Inventario</h2><button onclick="window.abrirModalProductoAdmin()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg w-full sm:w-auto"><i class="fa-solid fa-plus"></i> Nuevo Producto</button></div><div class="space-y-4">`; 
                 const listaCats = [...new Set([...categoriasPredeterminadas, ...datosRestaurante.categorias.map(c => c.nombre.toUpperCase())])];
@@ -1341,7 +1500,13 @@
                 let suma = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
                 window.cerrarModalProductos();
                 elementoSeleccionado = { id: 'flash', cliente: 'Venta Rápida', nombre: 'Mostrador', total: suma, rondas: [{ items: [...itemsRondaTemporal] }] };
+                
+                montoCobroActual = suma;
                 document.getElementById('txt-total-cobro').innerText = `₡${suma.toLocaleString()}`; 
+                
+                document.getElementById('vista-cobro-principal').classList.remove('hidden');
+                document.getElementById('vista-cobro-dividido').classList.add('hidden');
+                
                 document.getElementById('modal-cobro').classList.remove('hidden');
                 return;
             }
@@ -1384,7 +1549,16 @@
             renderizarGridOperacion();
         };
 
+        // MEJORA: Solo Admin (o PIN) puede liberar (escobita) si la mesa tiene productos
         window.liberarEspacio = async function() {
+            if (!elementoSeleccionado) return;
+            
+            // Si la mesa tiene algo cobrado, pedimos PIN para borrarla
+            if (elementoSeleccionado.total > 0 && rolUsuario !== 'admin') {
+                const pin = await window.customPromptPin("Esta mesa tiene productos. Ingrese PIN de Administrador para borrarla sin cobrar:");
+                if (pin !== pinAdmin) return window.customAlert("PIN incorrecto. No autorizado para borrar cuentas con saldo.");
+            }
+
             if(await window.customConfirm('¿Deseas liberar este espacio sin procesar cobro? (Se eliminarán todos los registros)')) {
                 if (elementoSeleccionado.esTemporal || elementoSeleccionado.nombre === 'Mesa Extra') {
                     await deleteDoc(doc(db, "espacios", elementoSeleccionado.id));
@@ -1422,18 +1596,101 @@
         window.iniciarCobro = function() { 
             if (!cajaAbierta) return window.customAlert('La caja está cerrada. Un administrador debe abrir el turno antes de poder cobrar.');
             if (!elementoSeleccionado || !elementoSeleccionado.total) return window.cerrarPanel(); 
-            document.getElementById('txt-total-cobro').innerText = `₡${elementoSeleccionado.total.toLocaleString()}`; 
+            
+            montoCobroActual = elementoSeleccionado.total;
+            document.getElementById('txt-total-cobro').innerText = `₡${montoCobroActual.toLocaleString()}`; 
+            
+            // Asegurarnos de que se muestre la vista principal
+            document.getElementById('vista-cobro-principal').classList.remove('hidden');
+            document.getElementById('vista-cobro-dividido').classList.add('hidden');
+            
             document.getElementById('modal-cobro').classList.remove('hidden'); 
         };
         
         window.cerrarModalCobro = function() { 
             document.getElementById('modal-cobro').classList.add('hidden'); 
-            if (elementoSeleccionado && elementoSeleccionado.id === 'flash') { elementoSeleccionado = null; esCobroRapido = false; }
+            if (elementoSeleccionado && (elementoSeleccionado.id === 'flash' || elementoSeleccionado.id === 'fiado_pendiente')) { 
+                elementoSeleccionado = null; 
+                esCobroRapido = false; 
+            }
         };
 
-        window.procesarPagoConfirmado = async function(metodoPago) {
+        // NUEVO: Funciones de Pago Dividido
+        window.mostrarVistaPagoDividido = function() {
+            document.getElementById('vista-cobro-principal').classList.add('hidden');
+            document.getElementById('vista-cobro-dividido').classList.remove('hidden');
+            
+            document.getElementById('txt-dividido-total').innerText = `₡${montoCobroActual.toLocaleString()}`;
+            
+            document.getElementById('input-div-efectivo').value = '';
+            document.getElementById('input-div-tarjeta').value = '';
+            document.getElementById('input-div-sinpe').value = '';
+            
+            window.calcularRestanteDividido();
+        };
+
+        window.volverCobroPrincipal = function() {
+            document.getElementById('vista-cobro-dividido').classList.add('hidden');
+            document.getElementById('vista-cobro-principal').classList.remove('hidden');
+        };
+
+        window.calcularRestanteDividido = function() {
+            const e = parseFloat(document.getElementById('input-div-efectivo').value) || 0;
+            const t = parseFloat(document.getElementById('input-div-tarjeta').value) || 0;
+            const s = parseFloat(document.getElementById('input-div-sinpe').value) || 0;
+            
+            const suma = e + t + s;
+            const restante = montoCobroActual - suma;
+            
+            const txtRestante = document.getElementById('txt-dividido-restante');
+            const btnConfirmar = document.getElementById('btn-confirmar-dividido');
+            
+            if (restante > 0) {
+                txtRestante.innerText = `₡${restante.toLocaleString()}`;
+                txtRestante.className = "text-xl font-black text-rose-500";
+                txtRestante.parentElement.querySelector('span').innerText = "Faltan:";
+                btnConfirmar.disabled = true;
+                btnConfirmar.classList.add('opacity-50', 'cursor-not-allowed');
+            } else if (restante < 0) {
+                txtRestante.innerText = `₡${Math.abs(restante).toLocaleString()}`;
+                txtRestante.className = "text-xl font-black text-amber-500";
+                txtRestante.parentElement.querySelector('span').innerText = "Vuelto:";
+                // Permitimos cobrar aunque sobre (por si es propina o vuelto)
+                btnConfirmar.disabled = false;
+                btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                txtRestante.innerText = `₡0`;
+                txtRestante.className = "text-xl font-black text-emerald-500";
+                txtRestante.parentElement.querySelector('span').innerText = "Cuadrado:";
+                btnConfirmar.disabled = false;
+                btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        };
+
+        // PROCESAR PAGO MODIFICADO (Soporta División y Cobro de Fiados)
+        window.procesarPagoConfirmado = async function(metodoPago, desglose = null) {
             const espacioCobro = elementoSeleccionado;
             if (!espacioCobro) return;
+
+            // Si es un pago dividido, extraemos los montos y verificamos
+            if (metodoPago === 'Dividido') {
+                const e = parseFloat(document.getElementById('input-div-efectivo').value) || 0;
+                const t = parseFloat(document.getElementById('input-div-tarjeta').value) || 0;
+                const s = parseFloat(document.getElementById('input-div-sinpe').value) || 0;
+                
+                if ((e + t + s) < montoCobroActual) {
+                    return window.customAlert("El monto ingresado no cubre el total de la cuenta.");
+                }
+                
+                // Si metieron de más en efectivo, se asume que es vuelto (solo registramos lo que se cobró)
+                let e_ajustado = e;
+                if ((e + t + s) > montoCobroActual && e > 0) {
+                    const vuelto = (e + t + s) - montoCobroActual;
+                    e_ajustado = e - vuelto; // Rebajamos el vuelto del efectivo
+                }
+                
+                desglose = { Efectivo: e_ajustado > 0 ? e_ajustado : 0, Tarjeta: t, SINPE: s };
+            }
 
             document.getElementById('modal-cobro').classList.add('hidden');
             const monto = espacioCobro.total;
@@ -1442,7 +1699,8 @@
             let cantidadesVendidasPorId = {};
             let cantidadesVendidasFallback = {}; 
             
-            if (espacioCobro.rondas) {
+            // Si no es un cobro de fiado, procesamos los items normalmente
+            if (espacioCobro.id !== 'fiado_pendiente' && espacioCobro.rondas) {
                 espacioCobro.rondas.forEach(ronda => {
                     ronda.items.forEach(item => {
                         itemsVendidosParaHistorial.push(item);
@@ -1453,12 +1711,16 @@
                         }
                     });
                 });
+            } else if (espacioCobro.id === 'fiado_pendiente') {
+                // Si es un fiado, ya rebajó stock antes, así que los items solo son para el ticket
+                itemsVendidosParaHistorial = [{ nombre: 'Pago de Cuenta Fiada', precio: monto }];
             }
 
             const ventaNueva = { 
                 fecha: new Date().toISOString(), 
                 fechaTurno: fechaAperturaCaja || new Date().toISOString(),
                 metodo: metodoPago, 
+                desglose: desglose,
                 total: monto, 
                 cliente: espacioCobro.cliente || 'General', 
                 zona: espacioCobro.nombre || 'Barra',
@@ -1472,33 +1734,37 @@
                 const refHistorial = doc(collection(db, "ventas_historial"));
                 batch.set(refHistorial, ventaNueva);
 
-                for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
-                    const prod = datosRestaurante.productos.find(p => p.id === idProd);
-                    if (prod) {
-                        let updates = {};
-                        if (prod.stock !== null && prod.stock !== undefined) {
-                            let nuevoStock = prod.stock - cant;
-                            updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
+                // Solo descontamos stock si NO ES un cobro de fiado (porque ya se descontó el día que se fio)
+                if (espacioCobro.id !== 'fiado_pendiente') {
+                    for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
+                        const prod = datosRestaurante.productos.find(p => p.id === idProd);
+                        if (prod) {
+                            let updates = {};
+                            if (prod.stock !== null && prod.stock !== undefined) {
+                                let nuevoStock = prod.stock - cant;
+                                updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
+                            }
+                            updates.ventasTotales = (prod.ventasTotales || 0) + cant;
+                            batch.update(doc(db, "productos", prod.id), updates);
                         }
-                        updates.ventasTotales = (prod.ventasTotales || 0) + cant;
-                        batch.update(doc(db, "productos", prod.id), updates);
+                    }
+
+                    for (const [nombre, cant] of Object.entries(cantidadesVendidasFallback)) {
+                        const prod = datosRestaurante.productos.find(p => nombre.startsWith(p.nombre));
+                        if (prod) {
+                            let updates = {};
+                            if (prod.stock !== null && prod.stock !== undefined) {
+                                let nuevoStock = prod.stock - cant;
+                                updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
+                            }
+                            updates.ventasTotales = (prod.ventasTotales || 0) + cant;
+                            batch.update(doc(db, "productos", prod.id), updates);
+                        }
                     }
                 }
 
-                for (const [nombre, cant] of Object.entries(cantidadesVendidasFallback)) {
-                    const prod = datosRestaurante.productos.find(p => nombre.startsWith(p.nombre));
-                    if (prod) {
-                        let updates = {};
-                        if (prod.stock !== null && prod.stock !== undefined) {
-                            let nuevoStock = prod.stock - cant;
-                            updates.stock = nuevoStock < 0 ? 0 : nuevoStock;
-                        }
-                        updates.ventasTotales = (prod.ventasTotales || 0) + cant;
-                        batch.update(doc(db, "productos", prod.id), updates);
-                    }
-                }
-
-                if (espacioCobro.id !== 'flash') {
+                // Limpiar la mesa de la base de datos
+                if (espacioCobro.id !== 'flash' && espacioCobro.id !== 'fiado_pendiente') {
                     const refEspacio = doc(db, "espacios", espacioCobro.id);
                     if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') {
                         batch.delete(refEspacio);
@@ -1507,9 +1773,14 @@
                     }
                 }
 
+                // Si era un fiado, eliminarlo de la colección de fiados pendientes
+                if (espacioCobro.id === 'fiado_pendiente') {
+                    batch.delete(doc(db, "cuentas_fiadas", espacioCobro.fiadoId));
+                }
+
                 await batch.commit();
 
-                if (espacioCobro.id === 'flash') { 
+                if (espacioCobro.id === 'flash' || espacioCobro.id === 'fiado_pendiente') { 
                     elementoSeleccionado = null; 
                     esCobroRapido = false; 
                 } else {
@@ -1517,9 +1788,18 @@
                 }
 
                 ventaReciente = ventaNueva;
-                let iconoMetodo = metodoPago === 'Efectivo' ? 'fa-money-bill-wave text-emerald-500' : (metodoPago === 'Tarjeta' ? 'fa-credit-card text-blue-400' : 'fa-mobile-screen text-rose-500');
+                
+                let iconoMetodo = 'fa-money-bill-wave text-emerald-500';
+                if (metodoPago === 'Tarjeta') iconoMetodo = 'fa-credit-card text-blue-400';
+                else if (metodoPago === 'SINPE') iconoMetodo = 'fa-mobile-screen text-rose-500';
+                else if (metodoPago === 'Dividido') iconoMetodo = 'fa-chart-pie text-indigo-400';
+                
+                const textoMetodo = metodoPago === 'Dividido' ? 'Pago Dividido / Mixto' : `Pago registrado con ${metodoPago}`;
+                
                 document.getElementById('txt-exito-monto').innerText = `₡${monto.toLocaleString()}`;
-                document.getElementById('txt-exito-metodo').innerHTML = `<i class="fa-solid ${iconoMetodo} mr-2"></i>Pago registrado con ${metodoPago}`;
+                document.getElementById('txt-exito-metodo').innerHTML = `<i class="fa-solid ${iconoMetodo} mr-2"></i>${textoMetodo}`;
+                document.getElementById('txt-exito-titulo').innerText = espacioCobro.id === 'fiado_pendiente' ? '¡Fiado Cobrado!' : '¡Cobro Exitoso!';
+                
                 document.getElementById('modal-exito-cobro').classList.remove('hidden');
 
             } catch (error) {
