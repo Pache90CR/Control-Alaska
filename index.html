@@ -89,7 +89,7 @@
             </div>
         </div>
 
-        <!-- MODAL DE COBRO (Mejorado con Pago Dividido) -->
+        <!-- MODAL DE COBRO (Con Pago Dividido) -->
         <div id="modal-cobro" class="fixed inset-0 bg-slate-950/90 z-[55] flex items-center justify-center p-4 hidden backdrop-blur-sm no-print">
             <div class="bg-slate-900 border border-slate-700 p-6 rounded-3xl w-full max-w-sm shadow-2xl overflow-y-auto max-h-[90vh] pro-scroll">
                 
@@ -315,7 +315,6 @@
                         <button onclick="window.cambiarSubVistaAdmin('dashboard')" id="btn-admin-dashboard" class="w-full text-left px-6 py-4 text-amber-500 bg-slate-800/80 border-r-4 border-amber-500 font-bold transition flex items-center gap-3"><i class="fa-solid fa-chart-pie w-5"></i> Dashboard</button>
                         <button onclick="window.cambiarSubVistaAdmin('caja')" id="btn-admin-caja" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-cash-register w-5"></i> Cierres de Caja</button>
                         <button onclick="window.cambiarSubVistaAdmin('historial')" id="btn-admin-historial" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-file-invoice-dollar w-5"></i> Historial de Ventas</button>
-                        <!-- NUEVA PESTAÑA FIADOS -->
                         <button onclick="window.cambiarSubVistaAdmin('fiados')" id="btn-admin-fiados" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-book-open text-rose-500 w-5"></i> Cuentas Fiadas</button>
                         <button onclick="window.cambiarSubVistaAdmin('menu')" id="btn-admin-menu" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-burger w-5"></i> Menú e Inventario</button>
                         <button onclick="window.cambiarSubVistaAdmin('categorias')" id="btn-admin-categorias" class="w-full text-left px-6 py-4 text-slate-400 hover:text-slate-200 font-bold transition flex items-center gap-3 hover:bg-slate-800/50"><i class="fa-solid fa-tags w-5"></i> Categorías</button>
@@ -382,7 +381,7 @@
         let esCobroRapido = false; 
         
         let ventaReciente = null;
-        let montoCobroActual = 0; // Para el pago dividido
+        let montoCobroActual = 0; 
 
         const fechaActual = new Date();
         const año = fechaActual.getFullYear();
@@ -482,7 +481,6 @@
             if(vistaActual === 'admin' && (adminSubVista === 'dashboard' || adminSubVista === 'historial')) renderizarModuloAdmin();
         });
 
-        // NUEVO: Escuchar colección de Fiados
         onSnapshot(collection(db, "cuentas_fiadas"), (snapshot) => {
             datosRestaurante.fiados = [];
             snapshot.forEach((doc) => { const data = doc.data(); data.id = doc.id; datosRestaurante.fiados.push(data); });
@@ -497,7 +495,6 @@
                     if(v.fecha && new Date(v.fecha) >= fechaApertura) {
                         ventasTotalesTurno += v.total;
                         
-                        // Lógica para registrar métodos si fue pago dividido
                         if (v.metodo === 'Dividido' && v.desglose) {
                             ventasEfectivoTurno += (v.desglose.Efectivo || 0);
                             ventasTarjetaTurno += (v.desglose.Tarjeta || 0);
@@ -711,7 +708,6 @@
                 `;
             }
 
-            // Desglose de pago si es dividido
             let strMetodo = venta.metodo;
             let desgloseHtml = '';
             if (venta.metodo === 'Dividido' && venta.desglose) {
@@ -877,7 +873,7 @@
             }
         };
 
-        // NUEVO: Funciones para Fiados
+        // NUEVO: Funciones para Fiados (Optimizada sin doble pregunta)
         window.fiarCuentaActual = async function() {
             if (rolUsuario !== 'admin') {
                 const pin = await window.customPromptPin("Ingrese PIN de Administrador para autorizar el fiado:");
@@ -886,10 +882,11 @@
 
             if (!elementoSeleccionado || !elementoSeleccionado.total) return;
 
-            const nombreCliente = await window.customPrompt("¿A nombre de quién quedará este fiado?", elementoSeleccionado.cliente);
-            if (!nombreCliente) return;
+            // Tomamos el nombre directamente de la mesa abierta (Ya no lo pregunta de nuevo)
+            const nombreCliente = elementoSeleccionado.cliente || 'Cliente General';
 
-            if (!await window.customConfirm(`¿Estás seguro de enviar la cuenta de ₡${elementoSeleccionado.total.toLocaleString()} a Fiados? (Se rebajará el stock pero no entrará dinero a la caja)`)) return;
+            // Incluimos el nombre directamente en la confirmación para mayor seguridad
+            if (!await window.customConfirm(`¿Estás seguro de enviar la cuenta de ₡${elementoSeleccionado.total.toLocaleString()} a nombre de "${nombreCliente}" a Fiados? (Se rebajará el stock pero no entrará dinero a la caja)`)) return;
 
             const espacioCobro = elementoSeleccionado;
             let itemsParaFiado = [];
@@ -948,13 +945,11 @@
         window.cobrarFiado = async function(idFiado, cliente, monto) {
             if (!cajaAbierta) return window.customAlert('La caja está cerrada. Debes abrir turno para poder cobrar un fiado e ingresarlo a la caja.');
             
-            // Reutilizamos el modal de cobro normal para cobrar el fiado
             elementoSeleccionado = { id: 'fiado_pendiente', fiadoId: idFiado, cliente: cliente, total: monto, nombre: 'Pago de Fiado', categoria: 'admin' };
             montoCobroActual = monto;
             
             document.getElementById('txt-total-cobro').innerText = `₡${monto.toLocaleString()}`; 
             
-            // Resetear vistas del modal
             document.getElementById('vista-cobro-principal').classList.remove('hidden');
             document.getElementById('vista-cobro-dividido').classList.add('hidden');
             
@@ -1147,7 +1142,6 @@
                 html += `</div>`;
                 cont.innerHTML = html;
             } 
-            // NUEVA VISTA: FIADOS
             else if (adminSubVista === 'fiados') {
                 let html = `<div class="max-w-5xl mx-auto w-full pb-20">
                     <div class="flex justify-between items-center mb-6">
@@ -1549,11 +1543,9 @@
             renderizarGridOperacion();
         };
 
-        // MEJORA: Solo Admin (o PIN) puede liberar (escobita) si la mesa tiene productos
         window.liberarEspacio = async function() {
             if (!elementoSeleccionado) return;
             
-            // Si la mesa tiene algo cobrado, pedimos PIN para borrarla
             if (elementoSeleccionado.total > 0 && rolUsuario !== 'admin') {
                 const pin = await window.customPromptPin("Esta mesa tiene productos. Ingrese PIN de Administrador para borrarla sin cobrar:");
                 if (pin !== pinAdmin) return window.customAlert("PIN incorrecto. No autorizado para borrar cuentas con saldo.");
@@ -1600,7 +1592,6 @@
             montoCobroActual = elementoSeleccionado.total;
             document.getElementById('txt-total-cobro').innerText = `₡${montoCobroActual.toLocaleString()}`; 
             
-            // Asegurarnos de que se muestre la vista principal
             document.getElementById('vista-cobro-principal').classList.remove('hidden');
             document.getElementById('vista-cobro-dividido').classList.add('hidden');
             
@@ -1615,7 +1606,6 @@
             }
         };
 
-        // NUEVO: Funciones de Pago Dividido
         window.mostrarVistaPagoDividido = function() {
             document.getElementById('vista-cobro-principal').classList.add('hidden');
             document.getElementById('vista-cobro-dividido').classList.remove('hidden');
@@ -1655,7 +1645,6 @@
                 txtRestante.innerText = `₡${Math.abs(restante).toLocaleString()}`;
                 txtRestante.className = "text-xl font-black text-amber-500";
                 txtRestante.parentElement.querySelector('span').innerText = "Vuelto:";
-                // Permitimos cobrar aunque sobre (por si es propina o vuelto)
                 btnConfirmar.disabled = false;
                 btnConfirmar.classList.remove('opacity-50', 'cursor-not-allowed');
             } else {
@@ -1667,12 +1656,10 @@
             }
         };
 
-        // PROCESAR PAGO MODIFICADO (Soporta División y Cobro de Fiados)
         window.procesarPagoConfirmado = async function(metodoPago, desglose = null) {
             const espacioCobro = elementoSeleccionado;
             if (!espacioCobro) return;
 
-            // Si es un pago dividido, extraemos los montos y verificamos
             if (metodoPago === 'Dividido') {
                 const e = parseFloat(document.getElementById('input-div-efectivo').value) || 0;
                 const t = parseFloat(document.getElementById('input-div-tarjeta').value) || 0;
@@ -1682,11 +1669,10 @@
                     return window.customAlert("El monto ingresado no cubre el total de la cuenta.");
                 }
                 
-                // Si metieron de más en efectivo, se asume que es vuelto (solo registramos lo que se cobró)
                 let e_ajustado = e;
                 if ((e + t + s) > montoCobroActual && e > 0) {
                     const vuelto = (e + t + s) - montoCobroActual;
-                    e_ajustado = e - vuelto; // Rebajamos el vuelto del efectivo
+                    e_ajustado = e - vuelto;
                 }
                 
                 desglose = { Efectivo: e_ajustado > 0 ? e_ajustado : 0, Tarjeta: t, SINPE: s };
@@ -1699,7 +1685,6 @@
             let cantidadesVendidasPorId = {};
             let cantidadesVendidasFallback = {}; 
             
-            // Si no es un cobro de fiado, procesamos los items normalmente
             if (espacioCobro.id !== 'fiado_pendiente' && espacioCobro.rondas) {
                 espacioCobro.rondas.forEach(ronda => {
                     ronda.items.forEach(item => {
@@ -1712,7 +1697,6 @@
                     });
                 });
             } else if (espacioCobro.id === 'fiado_pendiente') {
-                // Si es un fiado, ya rebajó stock antes, así que los items solo son para el ticket
                 itemsVendidosParaHistorial = [{ nombre: 'Pago de Cuenta Fiada', precio: monto }];
             }
 
@@ -1734,7 +1718,6 @@
                 const refHistorial = doc(collection(db, "ventas_historial"));
                 batch.set(refHistorial, ventaNueva);
 
-                // Solo descontamos stock si NO ES un cobro de fiado (porque ya se descontó el día que se fio)
                 if (espacioCobro.id !== 'fiado_pendiente') {
                     for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
                         const prod = datosRestaurante.productos.find(p => p.id === idProd);
@@ -1763,7 +1746,6 @@
                     }
                 }
 
-                // Limpiar la mesa de la base de datos
                 if (espacioCobro.id !== 'flash' && espacioCobro.id !== 'fiado_pendiente') {
                     const refEspacio = doc(db, "espacios", espacioCobro.id);
                     if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') {
@@ -1773,7 +1755,6 @@
                     }
                 }
 
-                // Si era un fiado, eliminarlo de la colección de fiados pendientes
                 if (espacioCobro.id === 'fiado_pendiente') {
                     batch.delete(doc(db, "cuentas_fiadas", espacioCobro.fiadoId));
                 }
