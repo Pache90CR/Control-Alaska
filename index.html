@@ -796,9 +796,9 @@
                         if (prod) {
                             let updates = {};
                             if (prod.stock !== null && prod.stock !== undefined) {
-                                updates.stock = increment(cant); // Devolvemos el stock al inventario
+                                updates.stock = increment(cant); 
                             }
-                            updates.ventasTotales = increment(-cant); // Restamos de las ventas totales
+                            updates.ventasTotales = increment(-cant); 
                             batch.update(doc(db, "productos", prod.id), updates);
                         }
                     }
@@ -1247,7 +1247,7 @@
             const fisico = val === '' ? 0 : parseFloat(val);
             const res = document.getElementById('resultado-diferencia');
             const dif = fisico - esperado;
-            res.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-400', 'bg-rose-500/20', 'text-rose-400', 'bg-amber-500/20', 'text-amber-400');
+            res.classList.remove('hidden', 'bg-emerald-500/20', 'textemerald-400', 'bg-rose-500/20', 'text-rose-400', 'bg-amber-500/20', 'text-amber-400');
             if(dif > 0) { res.classList.add('bg-emerald-500/20', 'text-emerald-400'); res.innerHTML = `Sobrante a favor: +₡${dif.toLocaleString()}`; } 
             else if (dif < 0) { res.classList.add('bg-rose-500/20', 'text-rose-400'); res.innerHTML = `Faltante de caja: -₡${Math.abs(dif).toLocaleString()}`; } 
             else if (fisico > 0 && dif === 0) { res.classList.add('bg-amber-500/20', 'text-amber-400'); res.innerHTML = `¡Caja cuadrada perfectamente!`; } 
@@ -1538,26 +1538,60 @@
             let espacio = [...datosRestaurante.barra, ...datosRestaurante.mesas, ...datosRestaurante.vip].find(e => e.id === id);
             
             if (espacio.estado === 'libre') {
+                const tarjeta = document.getElementById(`card-${id}`);
+                if(tarjeta) tarjeta.style.opacity = '0.5';
+                
+                try {
+                    const refEspacio = doc(db, "espacios", id);
+                    const docActual = await getDoc(refEspacio);
+                    
+                    if(tarjeta) tarjeta.style.opacity = '1';
+
+                    if (docActual.exists() && docActual.data().estado === 'ocupada') {
+                        const dataReal = docActual.data();
+                        
+                        espacio.estado = 'ocupada';
+                        espacio.cliente = dataReal.cliente;
+                        espacio.total = dataReal.total || 0;
+                        espacio.rondas = dataReal.rondas || [];
+                        
+                        renderizarGridOperacion();
+                        
+                        return window.customAlert(`Sincronización: La pantalla estaba desfasada. Esta mesa ya fue ocupada por "${dataReal.cliente}".`);
+                    }
+                } catch (error) {
+                    if(tarjeta) tarjeta.style.opacity = '1';
+                }
+
                 const nom = await window.customPrompt(`Apertura en ${espacio.nombre}.\nCliente:`, "");
                 if (!nom) return;
 
-                const refEspacio = doc(db, "espacios", id);
-                
+                const refEspacioFinal = doc(db, "espacios", id);
                 try {
                     await runTransaction(db, async (transaction) => {
-                        const docActual = await transaction.get(refEspacio);
-                        if (!docActual.exists()) throw "La mesa no existe.";
-                        
-                        if (docActual.data().estado === 'ocupada') {
-                            throw `¡Aviso! Otra salonera acaba de ocupar esta mesa con el cliente "${docActual.data().cliente}".`;
+                        const docTx = await transaction.get(refEspacioFinal);
+                        if (!docTx.exists()) throw new Error("La mesa no existe.");
+                        if (docTx.data().estado === 'ocupada') {
+                            throw new Error(`¡Aviso! Mientras escribías, otra salonera ocupó esta mesa con el cliente "${docTx.data().cliente}".`);
                         }
-                        
-                        transaction.update(refEspacio, { estado: 'ocupada', cliente: nom });
+                        transaction.update(refEspacioFinal, { estado: 'ocupada', cliente: nom });
                     });
+                    
                     espacio.estado = 'ocupada'; 
                     espacio.cliente = nom;
+                    
                 } catch (error) {
-                    window.customAlert(error);
+                    window.customAlert(error.message || error);
+                    
+                    const docFallo = await getDoc(refEspacioFinal);
+                    if(docFallo.exists()) {
+                        const df = docFallo.data();
+                        espacio.estado = df.estado;
+                        espacio.cliente = df.cliente;
+                        espacio.total = df.total || 0;
+                        espacio.rondas = df.rondas || [];
+                    }
+                    renderizarGridOperacion(); 
                     return; 
                 }
             }
