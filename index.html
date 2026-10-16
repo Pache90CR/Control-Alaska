@@ -622,6 +622,7 @@
             window.cerrarPanel();
         };
 
+        // ====== SOLUCIÓN DE DOM THRASHING / RENDERIZADO INTELIGENTE ====== //
         function renderizarGridOperacion() {
             const grid = document.getElementById('grid-elementos');
             const espaciosActuales = datosRestaurante[vistaActual] || [];
@@ -634,6 +635,7 @@
             const msgVacio = document.getElementById('msg-vacio');
             if (msgVacio) msgVacio.remove();
 
+            // 1. Limpiar tarjetas viejas de forma segura
             const idsActuales = espaciosActuales.map(e => e.id);
             Array.from(grid.children).forEach(child => {
                 if (child.id && child.id.startsWith('card-')) {
@@ -642,39 +644,43 @@
                 }
             });
 
-            espaciosActuales.forEach(el => {
+            // 2. Renderizado Inteligente con Hash
+            espaciosActuales.forEach((el, index) => {
                 const ocupada = el.estado === 'ocupada';
-                const htmlContenido = `
-                    <div class="flex justify-between items-start">
-                        <span class="font-bold text-lg text-slate-100 truncate pr-2">${ocupada ? el.cliente : 'Libre'}</span>
-                        <span class="w-3.5 h-3.5 rounded-full shrink-0 ${ocupada ? 'bg-rose-500' : 'bg-emerald-500'} shadow-[0_0_8px_${ocupada ? 'rgba(244,63,94,0.5)' : 'rgba(16,185,129,0.5)'}]"></span>
-                    </div>
-                    <div>
-                        <p class="text-xs text-slate-500 font-bold uppercase">${el.nombre}</p>
-                        <p class="text-lg font-black ${ocupada ? 'text-emerald-400' : 'text-slate-600'}">${ocupada ? '₡' + el.total.toLocaleString() : '---'}</p>
-                    </div>
-                `;
-
+                // Creamos una firma única con el estado de esta mesa
+                const estadoHash = `${ocupada}-${el.cliente}-${el.total}-${el.nombre}`;
+                
                 let tarjeta = document.getElementById(`card-${el.id}`);
                 
-                if (tarjeta) {
-                    if (tarjeta.innerHTML !== htmlContenido) {
-                        tarjeta.innerHTML = htmlContenido;
-                        tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer transition-colors duration-300 ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
-                    }
-                } else {
+                // Si no existe, la creamos vacía
+                if (!tarjeta) {
                     tarjeta = document.createElement('div');
                     tarjeta.id = `card-${el.id}`;
-                    tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer transition-colors duration-300 ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
                     tarjeta.onclick = () => window.seleccionarElemento(el.id);
-                    tarjeta.innerHTML = htmlContenido;
                     grid.appendChild(tarjeta);
                 }
-            });
 
-            espaciosActuales.forEach(el => {
-                const tarjeta = document.getElementById(`card-${el.id}`);
-                if (tarjeta) grid.appendChild(tarjeta); 
+                // SÓLO si el Hash es distinto (la data cambió), tocamos el HTML
+                if (tarjeta.getAttribute('data-hash') !== estadoHash) {
+                    const htmlContenido = `
+                        <div class="flex justify-between items-start">
+                            <span class="font-bold text-lg text-slate-100 truncate pr-2">${ocupada ? el.cliente : 'Libre'}</span>
+                            <span class="w-3.5 h-3.5 rounded-full shrink-0 ${ocupada ? 'bg-rose-500' : 'bg-emerald-500'} shadow-[0_0_8px_${ocupada ? 'rgba(244,63,94,0.5)' : 'rgba(16,185,129,0.5)'}]"></span>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-500 font-bold uppercase">${el.nombre}</p>
+                            <p class="text-lg font-black ${ocupada ? 'text-emerald-400' : 'text-slate-600'}">${ocupada ? '₡' + el.total.toLocaleString() : '---'}</p>
+                        </div>
+                    `;
+                    tarjeta.innerHTML = htmlContenido;
+                    tarjeta.className = `p-4 rounded-2xl border-2 flex flex-col justify-between h-32 cursor-pointer transition-colors duration-300 ${ocupada ? 'bg-rose-950/20 border-rose-600/50' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`;
+                    tarjeta.setAttribute('data-hash', estadoHash); // Guardamos la nueva firma
+                }
+                
+                // Reacomodamos el orden visual SIN usar appendChild destructivo
+                if (grid.children[index] !== tarjeta) {
+                    grid.insertBefore(tarjeta, grid.children[index]);
+                }
             });
         }
 
@@ -1247,7 +1253,7 @@
             const fisico = val === '' ? 0 : parseFloat(val);
             const res = document.getElementById('resultado-diferencia');
             const dif = fisico - esperado;
-            res.classList.remove('hidden', 'bg-emerald-500/20', 'textemerald-400', 'bg-rose-500/20', 'text-rose-400', 'bg-amber-500/20', 'text-amber-400');
+            res.classList.remove('hidden', 'bg-emerald-500/20', 'text-emerald-400', 'bg-rose-500/20', 'text-rose-400', 'bg-amber-500/20', 'text-amber-400');
             if(dif > 0) { res.classList.add('bg-emerald-500/20', 'text-emerald-400'); res.innerHTML = `Sobrante a favor: +₡${dif.toLocaleString()}`; } 
             else if (dif < 0) { res.classList.add('bg-rose-500/20', 'text-rose-400'); res.innerHTML = `Faltante de caja: -₡${Math.abs(dif).toLocaleString()}`; } 
             else if (fisico > 0 && dif === 0) { res.classList.add('bg-amber-500/20', 'text-amber-400'); res.innerHTML = `¡Caja cuadrada perfectamente!`; } 
@@ -1528,6 +1534,7 @@
                 
                 window.actualizarListaPanel(); 
                 window.cerrarModalProductos();
+                renderizarGridOperacion(); // <--- ACTUALIZACIÓN VISUAL INMEDIATA
             } catch (error) {
                 console.error(error);
                 window.customAlert("Ocurrió un error al guardar la ronda. Revisa tu conexión.");
