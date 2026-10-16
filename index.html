@@ -358,8 +358,8 @@
 
     <!-- SCRIPT PRINCIPAL -->
     <script type="module">
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, setDoc, writeBatch, getDoc, runTransaction, increment, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, setDoc, writeBatch, getDoc, runTransaction, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyBrVAO_tc3pU7wehVEX9q-JUMkSOkTAdG8",
@@ -382,6 +382,7 @@
         
         let ventaReciente = null;
         let montoCobroActual = 0; 
+        window.isProcesandoPago = false; // Bandera para evitar doble toque
 
         const fechaActual = new Date();
         const año = fechaActual.getFullYear();
@@ -430,7 +431,7 @@
                 }
             });
 
-            if (elementoSeleccionado && elementoSeleccionado.id !== 'flash' && !espacioAunExiste) {
+            if (elementoSeleccionado && elementoSeleccionado.id !== 'flash' && elementoSeleccionado.id !== 'fiado_pendiente' && !espacioAunExiste) {
                 window.customAlert("Alguien más acaba de cobrar o liberar esta mesa.");
                 window.cerrarPanel();
             }
@@ -474,7 +475,15 @@
             }
         });
 
-        onSnapshot(collection(db, "ventas_historial"), (snapshot) => {
+        // SALVAVIDAS DE CUOTA: Solo trae los últimos 7 días
+        const fechaHace7Dias = new Date();
+        fechaHace7Dias.setDate(fechaHace7Dias.getDate() - 7);
+        const queryVentasRecientes = query(
+            collection(db, "ventas_historial"), 
+            where("fecha", ">=", fechaHace7Dias.toISOString())
+        );
+
+        onSnapshot(queryVentasRecientes, (snapshot) => {
             datosRestaurante.ventas = [];
             snapshot.forEach((doc) => { const data = doc.data(); data.id = doc.id; datosRestaurante.ventas.push(data); });
             window.calcularVentasTurno();
@@ -1726,6 +1735,8 @@
         };
 
         window.procesarPagoConfirmado = async function(metodoPago, desglose = null) {
+            if (window.isProcesandoPago) return; // Prevención de "doble toque" accidental
+            
             const espacioCobro = elementoSeleccionado;
             if (!espacioCobro) return;
 
@@ -1734,22 +1745,20 @@
                 const t = parseFloat(document.getElementById('input-div-tarjeta').value) || 0;
                 const s = parseFloat(document.getElementById('input-div-sinpe').value) || 0;
                 
-                if ((e + t + s) < montoCobroActual) {
-                    return window.customAlert("El monto ingresado no cubre el total de la cuenta.");
-                }
+                if ((e + t + s) < montoCobroActual) return window.customAlert("El monto ingresado no cubre el total de la cuenta.");
                 
                 let e_ajustado = e;
                 if ((e + t + s) > montoCobroActual && e > 0) {
                     const vuelto = (e + t + s) - montoCobroActual;
                     e_ajustado = e - vuelto;
                 }
-                
                 desglose = { Efectivo: e_ajustado > 0 ? e_ajustado : 0, Tarjeta: t, SINPE: s };
             }
 
+            window.isProcesandoPago = true; // Bloqueamos el flujo
             document.getElementById('modal-cobro').classList.add('hidden');
-            const monto = espacioCobro.total;
             
+            const monto = espacioCobro.total;
             let itemsVendidosParaHistorial = [];
             let cantidadesVendidasPorId = {};
             let cantidadesVendidasFallback = {}; 
@@ -1782,77 +1791,79 @@
             };
 
             try {
-                const batch = writeBatch(db);
-
+                const refEspacio = (espacioCobro.id !== 'flash' && espacioCobro.id !== 'fiado_pendiente') ? doc(db, "espacios", espacioCobro.id) : null;
+                const refFiado = (espacioCobro.id === 'fiado_pendiente') ? doc(db, "cuentas_fiadas", espacioCobro.fiadoId) : null;
                 const refHistorial = doc(collection(db, "ventas_historial"));
-                batch.set(refHistorial, ventaNueva);
 
-                if (espacioCobro.id !== 'fiado_pendiente') {
-                    for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
-                        const prod = datosRestaurante.productos.find(p => p.id === idProd);
-                        if (prod) {
-                            let updates = {};
-                            if (prod.stock !== null && prod.stock !== undefined) {
-                                updates.stock = increment(-cant); 
+                await runTransaction(db, async (transaction) => {
+                    // 1. FASE DE LECTURA (Obligatorio antes de escribir)
+                    if (refEspacio) {
+                        const docEspacio = await transaction.get(refEspacio);
+                        if (!docEspacio.exists()) throw new Error("La mesa ya no existe o fue cobrada/liberada.");
+                        if (docEspacio.data().total !== monto) throw new Error("El monto de la mesa cambió justo ahora (alguien agregó o eliminó algo). Abriendo cuenta actualizada.");
+                    }
+                    if (refFiado) {
+                        const docFiado = await transaction.get(refFiado);
+                        if (!docFiado.exists()) throw new Error("Este fiado ya fue procesado.");
+                    }
+
+                    // 2. FASE DE ESCRITURA
+                    transaction.set(refHistorial, ventaNueva);
+
+                    if (espacioCobro.id !== 'fiado_pendiente') {
+                        for (const [idProd, cant] of Object.entries(cantidadesVendidasPorId)) {
+                            const prod = datosRestaurante.productos.find(p => p.id === idProd);
+                            if (prod) {
+                                let updates = { ventasTotales: increment(cant) };
+                                if (prod.stock !== null && prod.stock !== undefined) updates.stock = increment(-cant); 
+                                transaction.update(doc(db, "productos", prod.id), updates);
                             }
-                            updates.ventasTotales = increment(cant); 
-                            batch.update(doc(db, "productos", prod.id), updates);
+                        }
+                        for (const [nombre, cant] of Object.entries(cantidadesVendidasFallback)) {
+                            const prod = datosRestaurante.productos.find(p => nombre.startsWith(p.nombre));
+                            if (prod) {
+                                let updates = { ventasTotales: increment(cant) };
+                                if (prod.stock !== null && prod.stock !== undefined) updates.stock = increment(-cant);
+                                transaction.update(doc(db, "productos", prod.id), updates);
+                            }
                         }
                     }
 
-                    for (const [nombre, cant] of Object.entries(cantidadesVendidasFallback)) {
-                        const prod = datosRestaurante.productos.find(p => nombre.startsWith(p.nombre));
-                        if (prod) {
-                            let updates = {};
-                            if (prod.stock !== null && prod.stock !== undefined) {
-                                updates.stock = increment(-cant);
-                            }
-                            updates.ventasTotales = increment(cant);
-                            batch.update(doc(db, "productos", prod.id), updates);
+                    if (refEspacio) {
+                        if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') {
+                            transaction.delete(refEspacio);
+                        } else {
+                            transaction.update(refEspacio, { estado: 'libre', cliente: '', total: 0, rondas: [] });
                         }
                     }
-                }
+                    if (refFiado) transaction.delete(refFiado);
+                });
 
-                if (espacioCobro.id !== 'flash' && espacioCobro.id !== 'fiado_pendiente') {
-                    const refEspacio = doc(db, "espacios", espacioCobro.id);
-                    if (espacioCobro.esTemporal || espacioCobro.nombre === 'Mesa Extra') {
-                        batch.delete(refEspacio);
-                    } else {
-                        batch.update(refEspacio, { estado: 'libre', cliente: '', total: 0, rondas: [] });
-                    }
-                }
-
-                if (espacioCobro.id === 'fiado_pendiente') {
-                    batch.delete(doc(db, "cuentas_fiadas", espacioCobro.fiadoId));
-                }
-
-                await batch.commit();
-
+                // 3. ÉXITO Y ACTUALIZACIÓN UI
                 if (espacioCobro.id === 'flash' || espacioCobro.id === 'fiado_pendiente') { 
-                    elementoSeleccionado = null; 
-                    esCobroRapido = false; 
+                    elementoSeleccionado = null; esCobroRapido = false; 
                 } else {
                     window.cerrarPanel();
                 }
 
                 ventaReciente = ventaNueva;
-                
                 let iconoMetodo = 'fa-money-bill-wave text-emerald-500';
                 if (metodoPago === 'Tarjeta') iconoMetodo = 'fa-credit-card text-blue-400';
                 else if (metodoPago === 'SINPE') iconoMetodo = 'fa-mobile-screen text-rose-500';
                 else if (metodoPago === 'Dividido') iconoMetodo = 'fa-chart-pie text-indigo-400';
                 
-                const textoMetodo = metodoPago === 'Dividido' ? 'Pago Dividido / Mixto' : `Pago registrado con ${metodoPago}`;
-                
                 document.getElementById('txt-exito-monto').innerText = `₡${monto.toLocaleString()}`;
-                document.getElementById('txt-exito-metodo').innerHTML = `<i class="fa-solid ${iconoMetodo} mr-2"></i>${textoMetodo}`;
+                document.getElementById('txt-exito-metodo').innerHTML = `<i class="fa-solid ${iconoMetodo} mr-2"></i>${metodoPago === 'Dividido' ? 'Pago Dividido / Mixto' : `Pago registrado con ${metodoPago}`}`;
                 document.getElementById('txt-exito-titulo').innerText = espacioCobro.id === 'fiado_pendiente' ? '¡Fiado Cobrado!' : '¡Cobro Exitoso!';
                 
                 document.getElementById('modal-exito-cobro').classList.remove('hidden');
 
             } catch (error) {
                 console.error("Error procesando pago:", error);
-                window.customAlert("Ocurrió un corte de conexión justo al cobrar. Revisa tu internet, verifica si la venta se guardó y vuelve a intentar.");
+                window.customAlert(error.message || "Ocurrió un corte de conexión. Revisa tu internet e inténtalo de nuevo.");
+                document.getElementById('modal-cobro').classList.remove('hidden'); 
+            } finally {
+                window.isProcesandoPago = false; // Liberamos el botón, haya fallado o no
             }
         };
     </script>
