@@ -388,7 +388,9 @@
         window.isProcesandoRonda = false;
         window.isProcesandoFiado = false;
         window.isEliminandoRonda = false;
+        window.isAccionLocal = false; // Banderilla contra alertas falsas
         window.montoCongeladoCobro = 0;
+        let ultimaCargaSemana = 0;
 
         const fechaActual = new Date();
         const año = fechaActual.getFullYear();
@@ -418,6 +420,22 @@
         let datosRestaurante = { barra: [], mesas: [], vip: [], productos: [], categorias: [], ventasTurno: [], ventasSemana: [], ventasFiltro: [], fiados: [] };
         let unsubscribeVentasTurno = null;
 
+        // Detector de Conexión Reactivo
+        function actualizarEstadoRed() {
+            const el = document.getElementById('firebase-status');
+            if (el) {
+                if (navigator.onLine) {
+                    el.innerText = "Conectado y sincronizado 🟢";
+                    el.className = "mt-6 text-xs text-emerald-500 font-bold";
+                } else {
+                    el.innerText = "Sin conexión (Modo Offline) 🔴";
+                    el.className = "mt-6 text-xs text-rose-500 font-bold";
+                }
+            }
+        }
+        window.addEventListener('online', actualizarEstadoRed);
+        window.addEventListener('offline', actualizarEstadoRed);
+
         onSnapshot(collection(db, "espacios"), (snapshot) => {
             datosRestaurante.barra = []; datosRestaurante.mesas = []; datosRestaurante.vip = [];
             let espacioAunExiste = false;
@@ -438,7 +456,7 @@
                 }
             });
 
-            if (elementoSeleccionado && elementoSeleccionado.id !== 'flash' && elementoSeleccionado.id !== 'fiado_pendiente' && !espacioAunExiste) {
+            if (!window.isAccionLocal && elementoSeleccionado && elementoSeleccionado.id !== 'flash' && elementoSeleccionado.id !== 'fiado_pendiente' && !espacioAunExiste) {
                 window.customAlert("Alguien más acaba de cobrar o liberar esta mesa.");
                 window.cerrarPanel();
             }
@@ -464,10 +482,10 @@
             if(vistaActual === 'admin' && (adminSubVista === 'menu' || adminSubVista === 'categorias')) renderizarModuloAdmin();
         });
 
-        // Solo escucha ventas del turno actual (Ahorra base de datos)
+        // Solo escucha ventas de turno si es Administrador (Optimización de lectura)
         function iniciarListenerVentasTurno(fechaTurno) {
             if (unsubscribeVentasTurno) unsubscribeVentasTurno();
-            if (!fechaTurno) { datosRestaurante.ventasTurno = []; window.calcularVentasTurno(); return; }
+            if (!fechaTurno || rolUsuario !== 'admin') { datosRestaurante.ventasTurno = []; window.calcularVentasTurno(); return; }
             
             const queryTurno = query(collection(db, "ventas_historial"), where("fechaTurno", "==", fechaTurno));
             unsubscribeVentasTurno = onSnapshot(queryTurno, (snapshot) => {
@@ -566,6 +584,7 @@
 
         window.cerrarSesion = function() {
             rolUsuario = '';
+            iniciarListenerVentasTurno(null);
             document.getElementById('area-admin').classList.add('hidden');
             document.getElementById('area-operacion').classList.add('hidden');
             document.getElementById('tabs-operacion').classList.add('hidden');
@@ -580,6 +599,7 @@
                 const pin = await window.customPromptPin("Ingrese PIN Administrador:");
                 if(pin !== pinAdmin) return window.customAlert("PIN incorrecto");
                 rolUsuario = rol; 
+                iniciarListenerVentasTurno(fechaAperturaCaja);
                 document.getElementById('modal-login').classList.add('hidden');
                 document.getElementById('btn-tab-admin').style.display = 'block';
                 if (cajaAbierta) window.cambiarVista('admin'); 
@@ -604,7 +624,13 @@
             window.cambiarVista('admin');
         };
 
-        window.cargarDatosSemana = async function() {
+        // Caché inteligente de 5 minutos para el gráfico semanal
+        window.cargarDatosSemana = async function(forzar = false) {
+            const ahora = Date.now();
+            if (!forzar && (ahora - ultimaCargaSemana < 300000) && datosRestaurante.ventasSemana.length > 0) {
+                renderizarModuloAdmin();
+                return;
+            }
             try {
                 const fechaHace7Dias = new Date();
                 fechaHace7Dias.setDate(fechaHace7Dias.getDate() - 7);
@@ -612,9 +638,11 @@
                 const snap = await getDocs(q);
                 datosRestaurante.ventasSemana = [];
                 snap.forEach(doc => datosRestaurante.ventasSemana.push(doc.data()));
+                ultimaCargaSemana = ahora;
                 renderizarModuloAdmin();
             } catch(e) {
                 console.error(e);
+                renderizarModuloAdmin();
             }
         };
 
@@ -669,13 +697,12 @@
             document.getElementById('admin-mobile-title').innerText = nombresTitulos[vista];
             window.toggleAdminSidebar(false);
 
-            // Cargas bajo demanda
+            renderizarModuloAdmin();
+
             if (vista === 'historial') {
                 window.actualizarFiltrosHistorial();
             } else if (vista === 'dashboard') {
                 window.cargarDatosSemana();
-            } else {
-                renderizarModuloAdmin();
             }
         };
 
@@ -868,7 +895,7 @@
                         estado: 'ocupada', 
                         cliente: ventaObj.cliente || 'Cuenta Recuperada', 
                         total: ventaObj.total, 
-                        rondas: [{ items: ventaObj.items }], 
+                        rondas: [{ rid: 'r_' + Date.now(), items: ventaObj.items }], 
                         esTemporal: true 
                     });
                 }
@@ -902,6 +929,7 @@
                 let msg = e.message;
                 if (msg && msg.includes('offline')) msg = "Sin conexión. No se puede buscar historial.";
                 window.customAlert(msg);
+                renderizarModuloAdmin();
             }
         };
 
@@ -944,6 +972,7 @@
             if (!await window.customConfirm(`¿Estás seguro de enviar la cuenta de ₡${elementoSeleccionado.total.toLocaleString()} a nombre de "${nombreCliente}" a Fiados? (Se rebajará el stock)`)) return;
 
             window.isProcesandoFiado = true;
+            window.isAccionLocal = true; // Activa bandera local
             const espacioCobro = elementoSeleccionado;
             
             try {
@@ -1008,6 +1037,7 @@
                 window.customAlert(msg);
             } finally {
                 window.isProcesandoFiado = false;
+                window.isAccionLocal = false; // Desactiva bandera local
             }
         };
 
@@ -1018,7 +1048,7 @@
             
             elementoSeleccionado = { id: 'fiado_pendiente', fiadoId: idFiado, cliente: fiado.cliente, total: fiado.total, nombre: 'Pago de Fiado', categoria: 'admin' };
             montoCobroActual = fiado.total;
-            window.montoCongeladoCobro = fiado.total; // Bloqueo anti-desfase
+            window.montoCongeladoCobro = fiado.total; 
             
             document.getElementById('txt-total-cobro').innerText = `₡${fiado.total.toLocaleString()}`; 
             
@@ -1397,7 +1427,7 @@
                     img.onload = function() {
                         const canvas = document.createElement('canvas');
                         let width = img.width, height = img.height;
-                        const MAX_SIZE = 240; // Reducido para ahorrar tamaño de base de datos
+                        const MAX_SIZE = 240; 
                         if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; } 
                         else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
                         canvas.width = width; canvas.height = height;
@@ -1560,10 +1590,14 @@
             if (itemsRondaTemporal.length === 0) return window.customAlert('Seleccione productos.');
             window.isProcesandoRonda = true;
 
+            const ridUnico = 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+            const nuevaRonda = { rid: ridUnico, items: [...itemsRondaTemporal] };
+            const sumaNueva = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
+
             if (esCobroRapido) {
-                let suma = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
+                let suma = sumaNueva;
                 window.cerrarModalProductos();
-                elementoSeleccionado = { id: 'flash', cliente: 'Venta Rápida', nombre: 'Mostrador', total: suma, rondas: [{ items: [...itemsRondaTemporal] }] };
+                elementoSeleccionado = { id: 'flash', cliente: 'Venta Rápida', nombre: 'Mostrador', total: suma, rondas: [nuevaRonda] };
                 
                 montoCobroActual = suma;
                 window.montoCongeladoCobro = suma;
@@ -1579,32 +1613,32 @@
             }
             
             if (!elementoSeleccionado) { window.isProcesandoRonda = false; return; }
-            
-            const nuevaRonda = { items: [...itemsRondaTemporal] };
-            const sumaNueva = itemsRondaTemporal.reduce((acc, i) => acc + i.precio, 0);
             const refEspacio = doc(db, "espacios", elementoSeleccionado.id);
 
             try {
+                let rondasResultado = [];
+                let totalResultado = 0;
+
                 await runTransaction(db, async (transaction) => {
                     const docEspacio = await transaction.get(refEspacio);
                     if (!docEspacio.exists()) throw new Error("Error: El espacio ya no existe.");
                     
                     const dataActual = docEspacio.data();
-                    const nuevoTotal = (dataActual.total || 0) + sumaNueva;
-                    
-                    let rondasActuales = dataActual.rondas || [];
-                    rondasActuales.push(nuevaRonda);
+                    totalResultado = (dataActual.total || 0) + sumaNueva;
+                    rondasResultado = dataActual.rondas || [];
+                    rondasResultado.push(nuevaRonda);
 
                     transaction.update(refEspacio, {
-                        rondas: rondasActuales,
-                        total: nuevoTotal
+                        rondas: rondasResultado,
+                        total: totalResultado
                     });
-                    
-                    elementoSeleccionado.rondas = rondasActuales;
-                    elementoSeleccionado.total = nuevoTotal;
                 });
                 
-                itemsRondaTemporal = []; // Vaciamos para evitar dobles toques
+                // Asignaciones posteriores al Await para evitar inconsistencias
+                elementoSeleccionado.rondas = rondasResultado;
+                elementoSeleccionado.total = totalResultado;
+                itemsRondaTemporal = []; 
+                
                 window.actualizarListaPanel(); 
                 window.cerrarModalProductos();
                 renderizarGridOperacion(); 
@@ -1702,6 +1736,7 @@
             }
 
             if(await window.customConfirm('¿Deseas liberar este espacio sin procesar cobro? (Se eliminarán todos los registros)')) {
+                window.isAccionLocal = true; // Activa bandera de borrado local
                 try {
                     if (elementoSeleccionado.esTemporal || elementoSeleccionado.nombre === 'Mesa Extra') {
                         await deleteDoc(doc(db, "espacios", elementoSeleccionado.id));
@@ -1713,32 +1748,42 @@
                     let msg = e.message;
                     if(msg && msg.includes('offline')) msg = "Sin conexión a internet. No se puede borrar la cuenta.";
                     window.customAlert(msg);
+                } finally {
+                    window.isAccionLocal = false; // Desactiva bandera local
                 }
             }
         };
 
-        window.eliminarRonda = async function(index) {
+        // Eliminación por `rid` único por ronda
+        window.eliminarRonda = async function(ridTarget) {
             if(window.isEliminandoRonda) return;
             if(await window.customConfirm('¿Eliminar esta ronda?')) {
                 window.isEliminandoRonda = true;
                 try {
                     const refEspacio = doc(db, "espacios", elementoSeleccionado.id);
+                    let rondasResultado = [];
+                    let sumaResultado = 0;
+
                     await runTransaction(db, async (transaction) => {
                         const docEspacio = await transaction.get(refEspacio);
                         if (!docEspacio.exists()) throw new Error("La mesa ya no existe.");
                         const dataActual = docEspacio.data();
                         
                         let rondasNuevas = dataActual.rondas || [];
-                        if (index >= rondasNuevas.length) throw new Error("La ronda ya no existe.");
-                        rondasNuevas.splice(index, 1);
+                        const idx = rondasNuevas.findIndex(r => r.rid === ridTarget);
+                        if (idx === -1) throw new Error("La ronda ya fue eliminada por otro usuario.");
                         
-                        let sumaNueva = 0;
-                        rondasNuevas.forEach(r => r.items.forEach(i => sumaNueva += i.precio));
+                        rondasNuevas.splice(idx, 1);
+                        rondasNuevas.forEach(r => r.items.forEach(i => sumaResultado += i.precio));
                         
-                        transaction.update(refEspacio, { rondas: rondasNuevas, total: sumaNueva });
-                        elementoSeleccionado.rondas = rondasNuevas;
-                        elementoSeleccionado.total = sumaNueva;
+                        transaction.update(refEspacio, { rondas: rondasNuevas, total: sumaResultado });
+                        rondasResultado = rondasNuevas;
                     });
+
+                    // Asignación tras el await
+                    elementoSeleccionado.rondas = rondasResultado;
+                    elementoSeleccionado.total = sumaResultado;
+                    
                     window.actualizarListaPanel(); 
                     renderizarGridOperacion();
                 } catch(e) {
@@ -1758,7 +1803,7 @@
                 let subtotalRonda = ronda.items.reduce((acc, item) => acc + item.precio, 0);
                 let itemsHtml = '';
                 ronda.items.forEach(i => { itemsHtml += `<div class="flex justify-between items-center text-sm py-1 border-b border-slate-800/50"><span class="font-bold text-slate-200">${i.nombre}</span><span class="text-amber-400">₡${i.precio.toLocaleString()}</span></div>`; });
-                cont.innerHTML += `<div class="bg-slate-950 p-3 rounded-xl border border-slate-800 mb-3"><div class="flex justify-between items-center mb-2 pb-1 border-b border-slate-800"><span class="text-xs font-bold text-slate-400">Ronda #${rIndex + 1}</span><button onclick="window.eliminarRonda(${rIndex})" class="text-rose-500 text-xs font-bold hover:text-rose-400 transition flex items-center gap-1"><i class="fa-solid fa-trash"></i> Eliminar</button></div>${itemsHtml}<div class="flex justify-between items-center pt-2 font-black text-emerald-400 text-sm"><span>Subtotal:</span><span>₡${subtotalRonda.toLocaleString()}</span></div></div>`;
+                cont.innerHTML += `<div class="bg-slate-950 p-3 rounded-xl border border-slate-800 mb-3"><div class="flex justify-between items-center mb-2 pb-1 border-b border-slate-800"><span class="text-xs font-bold text-slate-400">Ronda #${rIndex + 1}</span><button onclick="window.eliminarRonda('${ronda.rid}')" class="text-rose-500 text-xs font-bold hover:text-rose-400 transition flex items-center gap-1"><i class="fa-solid fa-trash"></i> Eliminar</button></div>${itemsHtml}<div class="flex justify-between items-center pt-2 font-black text-emerald-400 text-sm"><span>Subtotal:</span><span>₡${subtotalRonda.toLocaleString()}</span></div></div>`;
             });
             document.getElementById('panel-total').innerText = `₡${(elementoSeleccionado.total || 0).toLocaleString()}`;
         };
@@ -1769,7 +1814,6 @@
             if (!cajaAbierta) return window.customAlert('La caja está cerrada. Un administrador debe abrir el turno antes de poder cobrar.');
             if (!elementoSeleccionado || !elementoSeleccionado.total) return window.cerrarPanel(); 
             
-            // CONGELAR VALOR para validación cruzada atómica en servidor
             window.montoCongeladoCobro = elementoSeleccionado.total;
             if (window.montoCongeladoCobro <= 0) return window.customAlert('La cuenta está en ₡0.');
 
@@ -1841,7 +1885,7 @@
         };
 
         window.procesarPagoConfirmado = async function(metodoPago, desglose = null) {
-            if (window.isProcesandoPago) return; // Bloqueo de doble clic
+            if (window.isProcesandoPago) return; 
             
             const espacioCobro = elementoSeleccionado;
             if (!espacioCobro) return;
@@ -1878,7 +1922,6 @@
                     let zonaReal = espacioCobro.nombre || 'Barra';
                     let categoriaZonaReal = espacioCobro.categoria || 'barra';
 
-                    // 1. LECTURAS (Solo de servidor)
                     if (refEspacio) {
                         const docEspacio = await transaction.get(refEspacio);
                         if (!docEspacio.exists()) throw new Error("La mesa ya fue liberada o cobrada.");
@@ -1916,7 +1959,6 @@
                         items: itemsParaVenta
                     };
 
-                    // 2. ESCRITURAS
                     transaction.set(refHistorial, ventaFinal);
 
                     if (espacioCobro.id !== 'fiado_pendiente') {
@@ -1948,7 +1990,6 @@
                     if (refFiado) transaction.delete(refFiado);
                 });
 
-                // 3. UI ÉXITO
                 if (espacioCobro.id === 'flash' || espacioCobro.id === 'fiado_pendiente') { 
                     elementoSeleccionado = null; esCobroRapido = false; 
                 } else {
@@ -1969,10 +2010,17 @@
 
             } catch (error) {
                 console.error("Error procesando pago:", error);
-                let msg = error.message;
-                if (msg && msg.includes('offline')) msg = "🔴 No hay conexión a internet. No se puede cobrar en este momento porque desajustaría el inventario. Revisa tu red.";
-                window.customAlert(msg);
-                document.getElementById('modal-cobro').classList.remove('hidden'); 
+                let msg = error.message || "Error al procesar el pago.";
+                const esErrorRed = msg.includes('offline') || msg.includes('conexion') || msg.includes('network');
+                
+                if (esErrorRed) {
+                    msg = "🔴 No hay conexión a internet. Revisa tu red e inténtalo de nuevo.";
+                    window.customAlert(msg);
+                    document.getElementById('modal-cobro').classList.remove('hidden'); // Reabre solo si es fallo de red
+                } else {
+                    window.customAlert(msg);
+                    window.cerrarPanel(); // Cierra para resetear interfaz desfasada
+                }
             } finally {
                 window.isProcesandoPago = false;
             }
